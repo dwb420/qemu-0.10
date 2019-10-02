@@ -63,7 +63,6 @@ OBJS+=scsi-generic.o
 OBJS+=usb.o usb-hub.o usb-$(HOST_USB).o usb-hid.o usb-msd.o usb-wacom.o
 OBJS+=usb-serial.o usb-net.o
 OBJS+=sd.o ssi-sd.o
-OBJS+=bt.o bt-host.o bt-vhci.o bt-l2cap.o bt-sdp.o bt-hci.o bt-hid.o usb-bt.o
 OBJS+=buffered_file.o migration.o migration-tcp.o net.o qemu-sockets.o
 OBJS+=qemu-char.o aio.o net-checksum.o savevm.o cache-utils.o
 
@@ -121,10 +120,6 @@ ifdef CONFIG_CURSES
 OBJS+=curses.o
 endif
 OBJS+=vnc.o d3des.o
-
-ifdef CONFIG_COCOA
-OBJS+=cocoa.o
-endif
 
 ifdef CONFIG_SLIRP
 CPPFLAGS+=-I$(SRC_PATH)/slirp

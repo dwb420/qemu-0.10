@@ -29,7 +29,6 @@
 #include "hw/audiodev.h"
 #include "hw/isa.h"
 #include "hw/baum.h"
-#include "hw/bt.h"
 #include "net.h"
 #include "console.h"
 #include "sysemu.h"
@@ -51,7 +50,7 @@
 #include <sys/time.h>
 #include <zlib.h>
 
-#ifndef _WIN32
+
 #include <pwd.h>
 #include <sys/times.h>
 #include <sys/wait.h>
@@ -62,30 +61,17 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <net/if.h>
-#if defined(__NetBSD__)
-#include <net/if_tap.h>
-#endif
-#ifdef __linux__
+
 #include <linux/if_tun.h>
-#endif
 #include <arpa/inet.h>
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/select.h>
-#ifdef _BSD
-#include <sys/stat.h>
-#ifdef __FreeBSD__
-#include <libutil.h>
-#else
-#include <util.h>
-#endif
-#elif defined (__GLIBC__) && defined (__FreeBSD_kernel__)
-#include <freebsd/stdlib.h>
-#else
 #ifdef __linux__
 #include <pty.h>
 #include <malloc.h>
 #include <linux/rtc.h>
+
 
 /* For the benefit of older linux systems which don't supply it,
    we use a local copy of hpet.h. */
@@ -95,63 +81,15 @@
 #include <linux/ppdev.h>
 #include <linux/parport.h>
 #endif
-#ifdef __sun__
-#include <sys/stat.h>
-#include <sys/ethernet.h>
-#include <sys/sockio.h>
-#include <netinet/arp.h>
-#include <netinet/in.h>
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h> // must come after ip.h
-#include <netinet/udp.h>
-#include <netinet/tcp.h>
-#include <net/if.h>
-#include <syslog.h>
-#include <stropts.h>
-#endif
-#endif
-#endif
-
 #include "qemu_socket.h"
 
 #if defined(CONFIG_SLIRP)
 #include "libslirp.h"
 #endif
 
-#if defined(__OpenBSD__)
-#include <util.h>
-#endif
-
 #if defined(CONFIG_VDE)
 #include <libvdeplug.h>
 #endif
-
-#ifdef _WIN32
-#include <malloc.h>
-#include <sys/timeb.h>
-#include <mmsystem.h>
-#define getopt_long_only getopt_long
-#define memalign(align, size) malloc(size)
-#endif
-
-#ifdef CONFIG_SDL
-#ifdef __APPLE__
-#include <SDL/SDL.h>
-int qemu_main(int argc, char **argv, char **envp);
-int main(int argc, char **argv)
-{
-    qemu_main(argc, argv, NULL);
-}
-#undef main
-#define main qemu_main
-#endif
-#endif /* CONFIG_SDL */
-
-#ifdef CONFIG_COCOA
-#undef main
-#define main qemu_main
-#endif /* CONFIG_COCOA */
 
 #include "disas.h"
 
@@ -206,15 +144,10 @@ static int rtc_date_offset = -1; /* -1 means no change */
 int cirrus_vga_enabled = 1;
 int std_vga_enabled = 0;
 int vmsvga_enabled = 0;
-#ifdef TARGET_SPARC
-int graphic_width = 1024;
-int graphic_height = 768;
-int graphic_depth = 8;
-#else
 int graphic_width = 800;
 int graphic_height = 600;
 int graphic_depth = 15;
-#endif
+
 static int full_screen = 0;
 #ifdef CONFIG_SDL
 static int no_frame = 0;
@@ -241,15 +174,9 @@ int daemonize = 0;
 const char *option_rom[MAX_OPTION_ROMS];
 int nb_option_roms;
 int semihosting_enabled = 0;
-#ifdef TARGET_ARM
-int old_param = 0;
-#endif
 const char *qemu_name;
 int alt_grab = 0;
-#if defined(TARGET_SPARC) || defined(TARGET_PPC)
-unsigned int nb_prom_envs = 0;
-const char *prom_envs[MAX_PROM_ENVS];
-#endif
+
 int nb_drives_opt;
 struct drive_opt drives_opt[MAX_DRIVES];
 
@@ -703,30 +630,6 @@ uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
 
 #define QEMU_TIMER_BASE 1000000000LL
 
-#ifdef WIN32
-
-static int64_t clock_freq;
-
-static void init_get_clock(void)
-{
-    LARGE_INTEGER freq;
-    int ret;
-    ret = QueryPerformanceFrequency(&freq);
-    if (ret == 0) {
-        fprintf(stderr, "Could not calibrate ticks\n");
-        exit(1);
-    }
-    clock_freq = freq.QuadPart;
-}
-
-static int64_t get_clock(void)
-{
-    LARGE_INTEGER ti;
-    QueryPerformanceCounter(&ti);
-    return muldiv64(ti.QuadPart, QEMU_TIMER_BASE, clock_freq);
-}
-
-#else
 
 static int use_rt_clock;
 
@@ -760,7 +663,6 @@ static int64_t get_clock(void)
         return tv.tv_sec * 1000000000LL + (tv.tv_usec * 1000);
     }
 }
-#endif
 
 /* Return the virtual CPU time, based on the instruction counter.  */
 static int64_t cpu_get_icount(void)
@@ -887,23 +789,7 @@ static void qemu_rearm_alarm_timer(struct qemu_alarm_timer *t)
 #define MIN_TIMER_REARM_US 250
 
 static struct qemu_alarm_timer *alarm_timer;
-#ifndef _WIN32
 static int alarm_timer_rfd, alarm_timer_wfd;
-#endif
-
-#ifdef _WIN32
-
-struct qemu_alarm_win32 {
-    MMRESULT timerId;
-    HANDLE host_alarm;
-    unsigned int period;
-} alarm_win32_data = {0, NULL, -1};
-
-static int win32_start_timer(struct qemu_alarm_timer *t);
-static void win32_stop_timer(struct qemu_alarm_timer *t);
-static void win32_rearm_timer(struct qemu_alarm_timer *t);
-
-#else
 
 static int unix_start_timer(struct qemu_alarm_timer *t);
 static void unix_stop_timer(struct qemu_alarm_timer *t);
@@ -921,8 +807,6 @@ static int rtc_start_timer(struct qemu_alarm_timer *t);
 static void rtc_stop_timer(struct qemu_alarm_timer *t);
 
 #endif /* __linux__ */
-
-#endif /* _WIN32 */
 
 /* Correlation between real and virtual time is always going to be
    fairly approximate, so ignore small variation.
@@ -990,7 +874,7 @@ static void init_icount_adjust(void)
 }
 
 static struct qemu_alarm_timer alarm_timers[] = {
-#ifndef _WIN32
+
 #ifdef __linux__
     {"dynticks", ALARM_FLAG_DYNTICKS, dynticks_start_timer,
      dynticks_stop_timer, dynticks_rearm_timer, NULL},
@@ -1000,12 +884,6 @@ static struct qemu_alarm_timer alarm_timers[] = {
     {"rtc", 0, rtc_start_timer, rtc_stop_timer, NULL, NULL},
 #endif
     {"unix", 0, unix_start_timer, unix_stop_timer, NULL, NULL},
-#else
-    {"dynticks", ALARM_FLAG_DYNTICKS, win32_start_timer,
-     win32_stop_timer, win32_rearm_timer, &alarm_win32_data},
-    {"win32", 0, win32_start_timer,
-     win32_stop_timer, NULL, &alarm_win32_data},
-#endif
     {NULL, }
 };
 
@@ -1361,8 +1239,6 @@ static uint64_t qemu_next_deadline_dyntick(void)
 }
 #endif
 
-#ifndef _WIN32
-
 /* Sets a specific flag */
 static int fcntl_setfl(int fd, int flag)
 {
@@ -1588,12 +1464,10 @@ static void unix_stop_timer(struct qemu_alarm_timer *t)
     setitimer(ITIMER_REAL, &itv, NULL);
 }
 
-#endif /* !defined(_WIN32) */
-
 static void try_to_rearm_timer(void *opaque)
 {
     struct qemu_alarm_timer *t = opaque;
-#ifndef _WIN32
+
     ssize_t len;
 
     /* Drain the notify pipe */
@@ -1601,7 +1475,6 @@ static void try_to_rearm_timer(void *opaque)
         char buffer[512];
         len = read(alarm_timer_rfd, buffer, sizeof(buffer));
     } while ((len == -1 && errno == EINTR) || len > 0);
-#endif
 
     if (t->flags & ALARM_FLAG_EXPIRED) {
         alarm_timer->flags &= ~ALARM_FLAG_EXPIRED;
@@ -1609,100 +1482,11 @@ static void try_to_rearm_timer(void *opaque)
     }
 }
 
-#ifdef _WIN32
-
-static int win32_start_timer(struct qemu_alarm_timer *t)
-{
-    TIMECAPS tc;
-    struct qemu_alarm_win32 *data = t->priv;
-    UINT flags;
-
-    data->host_alarm = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (!data->host_alarm) {
-        perror("Failed CreateEvent");
-        return -1;
-    }
-
-    memset(&tc, 0, sizeof(tc));
-    timeGetDevCaps(&tc, sizeof(tc));
-
-    if (data->period < tc.wPeriodMin)
-        data->period = tc.wPeriodMin;
-
-    timeBeginPeriod(data->period);
-
-    flags = TIME_CALLBACK_FUNCTION;
-    if (alarm_has_dynticks(t))
-        flags |= TIME_ONESHOT;
-    else
-        flags |= TIME_PERIODIC;
-
-    data->timerId = timeSetEvent(1,         // interval (ms)
-                        data->period,       // resolution
-                        host_alarm_handler, // function
-                        (DWORD)t,           // parameter
-                        flags);
-
-    if (!data->timerId) {
-        perror("Failed to initialize win32 alarm timer");
-
-        timeEndPeriod(data->period);
-        CloseHandle(data->host_alarm);
-        return -1;
-    }
-
-    qemu_add_wait_object(data->host_alarm, try_to_rearm_timer, t);
-
-    return 0;
-}
-
-static void win32_stop_timer(struct qemu_alarm_timer *t)
-{
-    struct qemu_alarm_win32 *data = t->priv;
-
-    timeKillEvent(data->timerId);
-    timeEndPeriod(data->period);
-
-    CloseHandle(data->host_alarm);
-}
-
-static void win32_rearm_timer(struct qemu_alarm_timer *t)
-{
-    struct qemu_alarm_win32 *data = t->priv;
-    uint64_t nearest_delta_us;
-
-    if (!active_timers[QEMU_TIMER_REALTIME] &&
-                !active_timers[QEMU_TIMER_VIRTUAL])
-        return;
-
-    nearest_delta_us = qemu_next_deadline_dyntick();
-    nearest_delta_us /= 1000;
-
-    timeKillEvent(data->timerId);
-
-    data->timerId = timeSetEvent(1,
-                        data->period,
-                        host_alarm_handler,
-                        (DWORD)t,
-                        TIME_ONESHOT | TIME_PERIODIC);
-
-    if (!data->timerId) {
-        perror("Failed to re-arm win32 alarm timer");
-
-        timeEndPeriod(data->period);
-        CloseHandle(data->host_alarm);
-        exit(1);
-    }
-}
-
-#endif /* _WIN32 */
-
 static int init_timer_alarm(void)
 {
     struct qemu_alarm_timer *t = NULL;
     int i, err = -1;
 
-#ifndef _WIN32
     int fds[2];
 
     err = pipe(fds);
@@ -1719,7 +1503,6 @@ static int init_timer_alarm(void)
 
     alarm_timer_rfd = fds[0];
     alarm_timer_wfd = fds[1];
-#endif
 
     for (i = 0; alarm_timers[i].name; i++) {
         t = &alarm_timers[i];
@@ -1734,20 +1517,17 @@ static int init_timer_alarm(void)
         goto fail;
     }
 
-#ifndef _WIN32
     qemu_set_fd_handler2(alarm_timer_rfd, NULL,
                          try_to_rearm_timer, NULL, t);
-#endif
 
     alarm_timer = t;
 
     return 0;
 
 fail:
-#ifndef _WIN32
     close(fds[0]);
     close(fds[1]);
-#endif
+
     return err;
 }
 
@@ -1793,28 +1573,6 @@ int qemu_timedate_diff(struct tm *tm)
 
     return seconds - time(NULL);
 }
-
-#ifdef _WIN32
-static void socket_cleanup(void)
-{
-    WSACleanup();
-}
-
-static int socket_init(void)
-{
-    WSADATA Data;
-    int ret, err;
-
-    ret = WSAStartup(MAKEWORD(2,2), &Data);
-    if (ret != 0) {
-        err = WSAGetLastError();
-        fprintf(stderr, "WSAStartup: %d\n", err);
-        return -1;
-    }
-    atexit(socket_cleanup);
-    return 0;
-}
-#endif
 
 const char *get_opt_name(char *buf, int buf_size, const char *p)
 {
@@ -1904,205 +1662,10 @@ int check_params(char *buf, int buf_size,
 }
 
 /***********************************************************/
-/* Bluetooth support */
-static int nb_hcis;
-static int cur_hci;
-static struct HCIInfo *hci_table[MAX_NICS];
-
-static struct bt_vlan_s {
-    struct bt_scatternet_s net;
-    int id;
-    struct bt_vlan_s *next;
-} *first_bt_vlan;
-
-/* find or alloc a new bluetooth "VLAN" */
-static struct bt_scatternet_s *qemu_find_bt_vlan(int id)
-{
-    struct bt_vlan_s **pvlan, *vlan;
-    for (vlan = first_bt_vlan; vlan != NULL; vlan = vlan->next) {
-        if (vlan->id == id)
-            return &vlan->net;
-    }
-    vlan = qemu_mallocz(sizeof(struct bt_vlan_s));
-    vlan->id = id;
-    pvlan = &first_bt_vlan;
-    while (*pvlan != NULL)
-        pvlan = &(*pvlan)->next;
-    *pvlan = vlan;
-    return &vlan->net;
-}
-
-static void null_hci_send(struct HCIInfo *hci, const uint8_t *data, int len)
-{
-}
-
-static int null_hci_addr_set(struct HCIInfo *hci, const uint8_t *bd_addr)
-{
-    return -ENOTSUP;
-}
-
-static struct HCIInfo null_hci = {
-    .cmd_send = null_hci_send,
-    .sco_send = null_hci_send,
-    .acl_send = null_hci_send,
-    .bdaddr_set = null_hci_addr_set,
-};
-
-struct HCIInfo *qemu_next_hci(void)
-{
-    if (cur_hci == nb_hcis)
-        return &null_hci;
-
-    return hci_table[cur_hci++];
-}
-
-static struct HCIInfo *hci_init(const char *str)
-{
-    char *endp;
-    struct bt_scatternet_s *vlan = 0;
-
-    if (!strcmp(str, "null"))
-        /* null */
-        return &null_hci;
-    else if (!strncmp(str, "host", 4) && (str[4] == '\0' || str[4] == ':'))
-        /* host[:hciN] */
-        return bt_host_hci(str[4] ? str + 5 : "hci0");
-    else if (!strncmp(str, "hci", 3)) {
-        /* hci[,vlan=n] */
-        if (str[3]) {
-            if (!strncmp(str + 3, ",vlan=", 6)) {
-                vlan = qemu_find_bt_vlan(strtol(str + 9, &endp, 0));
-                if (*endp)
-                    vlan = 0;
-            }
-        } else
-            vlan = qemu_find_bt_vlan(0);
-        if (vlan)
-           return bt_new_hci(vlan);
-    }
-
-    fprintf(stderr, "qemu: Unknown bluetooth HCI `%s'.\n", str);
-
-    return 0;
-}
-
-static int bt_hci_parse(const char *str)
-{
-    struct HCIInfo *hci;
-    bdaddr_t bdaddr;
-
-    if (nb_hcis >= MAX_NICS) {
-        fprintf(stderr, "qemu: Too many bluetooth HCIs (max %i).\n", MAX_NICS);
-        return -1;
-    }
-
-    hci = hci_init(str);
-    if (!hci)
-        return -1;
-
-    bdaddr.b[0] = 0x52;
-    bdaddr.b[1] = 0x54;
-    bdaddr.b[2] = 0x00;
-    bdaddr.b[3] = 0x12;
-    bdaddr.b[4] = 0x34;
-    bdaddr.b[5] = 0x56 + nb_hcis;
-    hci->bdaddr_set(hci, bdaddr.b);
-
-    hci_table[nb_hcis++] = hci;
-
-    return 0;
-}
-
-static void bt_vhci_add(int vlan_id)
-{
-    struct bt_scatternet_s *vlan = qemu_find_bt_vlan(vlan_id);
-
-    if (!vlan->slave)
-        fprintf(stderr, "qemu: warning: adding a VHCI to "
-                        "an empty scatternet %i\n", vlan_id);
-
-    bt_vhci_init(bt_new_hci(vlan));
-}
-
-static struct bt_device_s *bt_device_add(const char *opt)
-{
-    struct bt_scatternet_s *vlan;
-    int vlan_id = 0;
-    char *endp = strstr(opt, ",vlan=");
-    int len = (endp ? endp - opt : strlen(opt)) + 1;
-    char devname[10];
-
-    pstrcpy(devname, MIN(sizeof(devname), len), opt);
-
-    if (endp) {
-        vlan_id = strtol(endp + 6, &endp, 0);
-        if (*endp) {
-            fprintf(stderr, "qemu: unrecognised bluetooth vlan Id\n");
-            return 0;
-        }
-    }
-
-    vlan = qemu_find_bt_vlan(vlan_id);
-
-    if (!vlan->slave)
-        fprintf(stderr, "qemu: warning: adding a slave device to "
-                        "an empty scatternet %i\n", vlan_id);
-
-    if (!strcmp(devname, "keyboard"))
-        return bt_keyboard_init(vlan);
-
-    fprintf(stderr, "qemu: unsupported bluetooth device `%s'\n", devname);
-    return 0;
-}
-
-static int bt_parse(const char *opt)
-{
-    const char *endp, *p;
-    int vlan;
-
-    if (strstart(opt, "hci", &endp)) {
-        if (!*endp || *endp == ',') {
-            if (*endp)
-                if (!strstart(endp, ",vlan=", 0))
-                    opt = endp + 1;
-
-            return bt_hci_parse(opt);
-       }
-    } else if (strstart(opt, "vhci", &endp)) {
-        if (!*endp || *endp == ',') {
-            if (*endp) {
-                if (strstart(endp, ",vlan=", &p)) {
-                    vlan = strtol(p, (char **) &endp, 0);
-                    if (*endp) {
-                        fprintf(stderr, "qemu: bad scatternet '%s'\n", p);
-                        return 1;
-                    }
-                } else {
-                    fprintf(stderr, "qemu: bad parameter '%s'\n", endp + 1);
-                    return 1;
-                }
-            } else
-                vlan = 0;
-
-            bt_vhci_add(vlan);
-            return 0;
-        }
-    } else if (strstart(opt, "device:", &endp))
-        return !bt_device_add(endp);
-
-    fprintf(stderr, "qemu: bad bluetooth parameter '%s'\n", opt);
-    return 1;
-}
-
-/***********************************************************/
 /* QEMU Block devices */
 
 #define HD_ALIAS "index=%d,media=disk"
-#ifdef TARGET_PPC
-#define CDROM_ALIAS "index=1,media=cdrom"
-#else
 #define CDROM_ALIAS "index=2,media=cdrom"
-#endif
 #define FD_ALIAS "index=%d,if=floppy"
 #define PFLASH_ALIAS "if=pflash"
 #define MTD_ALIAS "if=mtd"
@@ -2657,9 +2220,6 @@ static int usb_device_add(const char *devname)
             return -1;
         nd_table[nic].model = "usb";
         dev = usb_net_init(&nd_table[nic]);
-    } else if (!strcmp(devname, "bt") || strstart(devname, "bt:", &p)) {
-        dev = usb_bt_init(devname[2] ? hci_init(p) :
-                        bt_new_hci(qemu_find_bt_vlan(0)));
     } else {
         return -1;
     }
@@ -3563,55 +3123,9 @@ void qemu_system_powerdown_request(void)
         cpu_interrupt(cpu_single_env, CPU_INTERRUPT_EXIT);
 }
 
-#ifdef _WIN32
-static void host_main_loop_wait(int *timeout)
-{
-    int ret, ret2, i;
-    PollingEntry *pe;
-
-
-    /* XXX: need to suppress polling by better using win32 events */
-    ret = 0;
-    for(pe = first_polling_entry; pe != NULL; pe = pe->next) {
-        ret |= pe->func(pe->opaque);
-    }
-    if (ret == 0) {
-        int err;
-        WaitObjects *w = &wait_objects;
-
-        ret = WaitForMultipleObjects(w->num, w->events, FALSE, *timeout);
-        if (WAIT_OBJECT_0 + 0 <= ret && ret <= WAIT_OBJECT_0 + w->num - 1) {
-            if (w->func[ret - WAIT_OBJECT_0])
-                w->func[ret - WAIT_OBJECT_0](w->opaque[ret - WAIT_OBJECT_0]);
-
-            /* Check for additional signaled events */
-            for(i = (ret - WAIT_OBJECT_0 + 1); i < w->num; i++) {
-
-                /* Check if event is signaled */
-                ret2 = WaitForSingleObject(w->events[i], 0);
-                if(ret2 == WAIT_OBJECT_0) {
-                    if (w->func[i])
-                        w->func[i](w->opaque[i]);
-                } else if (ret2 == WAIT_TIMEOUT) {
-                } else {
-                    err = GetLastError();
-                    fprintf(stderr, "WaitForSingleObject error %d %d\n", i, err);
-                }
-            }
-        } else if (ret == WAIT_TIMEOUT) {
-        } else {
-            err = GetLastError();
-            fprintf(stderr, "WaitForMultipleObjects error %d %d\n", ret, err);
-        }
-    }
-
-    *timeout = 0;
-}
-#else
 static void host_main_loop_wait(int *timeout)
 {
 }
-#endif
 
 void main_loop_wait(int timeout)
 {
@@ -3882,9 +3396,7 @@ static void help(int exitcode)
            "-boot [a|c|d|n] boot on floppy (a), hard disk (c), CD-ROM (d), or network (n)\n"
            "-snapshot       write to temporary files instead of disk image files\n"
            "-m megs         set virtual RAM size to megs MB [default=%d]\n"
-#ifndef _WIN32
            "-k language     use keyboard layout (for example \"fr\" for French)\n"
-#endif
 #ifdef HAS_AUDIO
            "-audio-help     print list of audio drivers and their options\n"
            "-soundhw c1,... enable audio support\n"
@@ -3913,9 +3425,6 @@ static void help(int exitcode)
            "-vga [std|cirrus|vmware|none]\n"
            "                select video card type\n"
            "-full-screen    start in full screen\n"
-#if defined(TARGET_PPC) || defined(TARGET_SPARC)
-           "-g WxH[xDEPTH]  Set the initial graphical resolution and depth\n"
-#endif
            "-vnc display    start a VNC server on display\n"
            "\n"
            "Network options:\n"
@@ -3926,17 +3435,12 @@ static void help(int exitcode)
            "                connect the user mode network stack to VLAN 'n' and send\n"
            "                hostname 'host' to DHCP clients\n"
 #endif
-#ifdef _WIN32
-           "-net tap[,vlan=n][,name=str],ifname=name\n"
-           "                connect the host TAP network interface to VLAN 'n'\n"
-#else
            "-net tap[,vlan=n][,name=str][,fd=h][,ifname=name][,script=file][,downscript=dfile]\n"
            "                connect the host TAP network interface to VLAN 'n' and use the\n"
            "                network scripts 'file' (default=%s)\n"
            "                and 'dfile' (default=%s);\n"
            "                use '[down]script=no' to disable script execution;\n"
            "                use 'fd=h' to connect to an already opened TAP interface\n"
-#endif
            "-net socket[,vlan=n][,name=str][,fd=h][,listen=[host]:port][,connect=host:port]\n"
            "                connect the vlan 'n' to another VLAN using a socket connection\n"
            "-net socket[,vlan=n][,name=str][,fd=h][,mcast=maddr:port]\n"
@@ -3953,9 +3457,7 @@ static void help(int exitcode)
 #ifdef CONFIG_SLIRP
            "-tftp dir       allow tftp access to files in dir [-net user]\n"
            "-bootp file     advertise file in BOOTP replies\n"
-#ifndef _WIN32
            "-smb dir        allow SMB access to files in 'dir' [-net user]\n"
-#endif
            "-redir [tcp|udp]:host-port:[guest-host]:guest-port\n"
            "                redirect TCP or UDP connections from host to guest [-net user]\n"
 #endif
@@ -4000,10 +3502,6 @@ static void help(int exitcode)
            "                translation (t=none or lba) (usually qemu can guess them)\n"
            "-L path         set the directory for the BIOS, VGA BIOS and keymaps\n"
            "-bios file      set the filename for the BIOS\n"
-#ifdef USE_KQEMU
-           "-kernel-kqemu   enable KQEMU full virtualization (default is user mode only)\n"
-           "-no-kqemu       disable KQEMU kernel module usage\n"
-#endif
 #ifdef CONFIG_KVM
            "-enable-kvm     enable KVM full virtualization support\n"
 #endif
@@ -4011,14 +3509,8 @@ static void help(int exitcode)
            "-no-shutdown    stop before shutdown\n"
            "-loadvm [tag|id]\n"
            "                start right away with a saved state (loadvm in monitor)\n"
-#ifndef _WIN32
        "-daemonize      daemonize QEMU after initializing\n"
-#endif
        "-option-rom rom load a file, rom, into the option ROM space\n"
-#if defined(TARGET_SPARC) || defined(TARGET_PPC)
-           "-prom-env variable=value\n"
-           "                set OpenBIOS nvram variables\n"
-#endif
            "-clock          force the use of the given methods for timer alarm.\n"
            "                To see what timers are available use -clock ?\n"
            "-localtime      set the real time clock to local time [default=utc]\n"
@@ -4029,18 +3521,10 @@ static void help(int exitcode)
            "-virtioconsole c\n"
            "                set virtio console\n"
            "-show-cursor    show cursor\n"
-#if defined(TARGET_ARM) || defined(TARGET_M68K)
-           "-semihosting    semihosting mode\n"
-#endif
-#if defined(TARGET_ARM)
-           "-old-param      old param mode\n"
-#endif
            "-tb-size n      set TB size\n"
            "-incoming p     prepare for incoming migration, listen on port p\n"
-#ifndef _WIN32
            "-chroot dir     Chroot to dir just before starting the VM.\n"
            "-runas user     Change to user id user just before starting the VM.\n"
-#endif
            "\n"
            "During emulation, the following keys are useful:\n"
            "ctrl-alt-f      toggle full screen\n"
@@ -4051,10 +3535,8 @@ static void help(int exitcode)
            ,
            "qemu",
            DEFAULT_RAM_SIZE,
-#ifndef _WIN32
            DEFAULT_NETWORK_SCRIPT,
            DEFAULT_NETWORK_DOWN_SCRIPT,
-#endif
            DEFAULT_GDBSTUB_PORT,
            "/tmp/qemu.log");
     exit(exitcode);
@@ -4191,9 +3673,7 @@ static const QEMUOption qemu_options[] = {
     { "boot", HAS_ARG, QEMU_OPTION_boot },
     { "snapshot", 0, QEMU_OPTION_snapshot },
     { "m", HAS_ARG, QEMU_OPTION_m },
-#ifndef _WIN32
     { "k", HAS_ARG, QEMU_OPTION_k },
-#endif
 #ifdef HAS_AUDIO
     { "audio-help", 0, QEMU_OPTION_audio_help },
     { "soundhw", HAS_ARG, QEMU_OPTION_soundhw },
@@ -4217,9 +3697,6 @@ static const QEMUOption qemu_options[] = {
     { "portrait", 0, QEMU_OPTION_portrait },
     { "vga", HAS_ARG, QEMU_OPTION_vga },
     { "full-screen", 0, QEMU_OPTION_full_screen },
-#if defined(TARGET_PPC) || defined(TARGET_SPARC)
-    { "g", 1, QEMU_OPTION_g },
-#endif
     { "vnc", HAS_ARG, QEMU_OPTION_vnc },
 
     /* Network options: */
@@ -4227,12 +3704,9 @@ static const QEMUOption qemu_options[] = {
 #ifdef CONFIG_SLIRP
     { "tftp", HAS_ARG, QEMU_OPTION_tftp },
     { "bootp", HAS_ARG, QEMU_OPTION_bootp },
-#ifndef _WIN32
     { "smb", HAS_ARG, QEMU_OPTION_smb },
-#endif
     { "redir", HAS_ARG, QEMU_OPTION_redir },
 #endif
-    { "bt", HAS_ARG, QEMU_OPTION_bt },
 #ifdef TARGET_I386
     /* i386 target only: */
     { "win2k-hack", 0, QEMU_OPTION_win2k_hack },
@@ -4268,9 +3742,6 @@ static const QEMUOption qemu_options[] = {
     { "loadvm", HAS_ARG, QEMU_OPTION_loadvm },
     { "daemonize", 0, QEMU_OPTION_daemonize },
     { "option-rom", HAS_ARG, QEMU_OPTION_option_rom },
-#if defined(TARGET_SPARC) || defined(TARGET_PPC)
-    { "prom-env", HAS_ARG, QEMU_OPTION_prom_env },
-#endif
     { "clock", HAS_ARG, QEMU_OPTION_clock },
     { "localtime", 0, QEMU_OPTION_localtime },
     { "startdate", HAS_ARG, QEMU_OPTION_startdate },
@@ -4278,12 +3749,6 @@ static const QEMUOption qemu_options[] = {
     { "echr", HAS_ARG, QEMU_OPTION_echr },
     { "virtioconsole", HAS_ARG, QEMU_OPTION_virtiocon },
     { "show-cursor", 0, QEMU_OPTION_show_cursor },
-#if defined(TARGET_ARM) || defined(TARGET_M68K)
-    { "semihosting", 0, QEMU_OPTION_semihosting },
-#endif
-#if defined(TARGET_ARM)
-    { "old-param", 0, QEMU_OPTION_old_param },
-#endif
     { "tb-size", HAS_ARG, QEMU_OPTION_tb_size },
     { "incoming", HAS_ARG, QEMU_OPTION_incoming },
     { "chroot", HAS_ARG, QEMU_OPTION_chroot },
@@ -4333,7 +3798,7 @@ static void read_passwords(void)
 #ifdef HAS_AUDIO
 struct soundhw soundhw[] = {
 #ifdef HAS_AUDIO_CHOICE
-#if defined(TARGET_I386) || defined(TARGET_MIPS)
+#if defined(TARGET_I386)
     {
         "pcspk",
         "PC speaker",
@@ -4511,14 +3976,6 @@ static void select_vgahw (const char *p)
     }
 }
 
-#ifdef _WIN32
-static BOOL WINAPI qemu_ctrl_handler(DWORD type)
-{
-    exit(STATUS_CONTROL_C_EXIT);
-    return TRUE;
-}
-#endif
-
 static int qemu_uuid_parse(const char *str, uint8_t *uuid)
 {
     int ret;
@@ -4538,8 +3995,6 @@ static int qemu_uuid_parse(const char *str, uint8_t *uuid)
 
 #define MAX_NET_CLIENTS 32
 
-#ifndef _WIN32
-
 static void termsig_handler(int signal)
 {
     qemu_system_shutdown_request();
@@ -4556,7 +4011,6 @@ static void termsig_setup(void)
     sigaction(SIGTERM, &act, NULL);
 }
 
-#endif
 
 int main(int argc, char **argv, char **envp)
 {
@@ -4576,7 +4030,6 @@ int main(int argc, char **argv, char **envp)
     const char *net_clients[MAX_NET_CLIENTS];
     int nb_net_clients;
     const char *bt_opts[MAX_BT_CMDLINE];
-    int nb_bt_opts;
     int hda_index;
     int optind;
     const char *r, *optarg;
@@ -4606,7 +4059,6 @@ int main(int argc, char **argv, char **envp)
     qemu_cache_utils_init(envp);
 
     LIST_INIT (&vm_change_state_head);
-#ifndef _WIN32
     {
         struct sigaction act;
         sigfillset(&act.sa_mask);
@@ -4614,27 +4066,7 @@ int main(int argc, char **argv, char **envp)
         act.sa_handler = SIG_IGN;
         sigaction(SIGPIPE, &act, NULL);
     }
-#else
-    SetConsoleCtrlHandler(qemu_ctrl_handler, TRUE);
-    /* Note: cpu_interrupt() is currently not SMP safe, so we force
-       QEMU to run on a single CPU */
-    {
-        HANDLE h;
-        DWORD mask, smask;
-        int i;
-        h = GetCurrentProcess();
-        if (GetProcessAffinityMask(h, &mask, &smask)) {
-            for(i = 0; i < 32; i++) {
-                if (mask & (1 << i))
-                    break;
-            }
-            if (i != 32) {
-                mask = 1 << i;
-                SetProcessAffinityMask(h, mask);
-            }
-        }
-    }
-#endif
+
 
     register_machines();
     machine = first_machine;
@@ -4672,7 +4104,6 @@ int main(int argc, char **argv, char **envp)
     usb_devices_index = 0;
 
     nb_net_clients = 0;
-    nb_bt_opts = 0;
     nb_drives = 0;
     nb_drives_opt = 0;
     hda_index = -1;
@@ -4899,22 +4330,13 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_bootp:
                 bootp_filename = optarg;
                 break;
-#ifndef _WIN32
             case QEMU_OPTION_smb:
         net_slirp_smb(optarg);
                 break;
-#endif
             case QEMU_OPTION_redir:
                 net_slirp_redir(optarg);
                 break;
 #endif
-            case QEMU_OPTION_bt:
-                if (nb_bt_opts >= MAX_BT_CMDLINE) {
-                    fprintf(stderr, "qemu: too many bluetooth options\n");
-                    exit(1);
-                }
-                bt_opts[nb_bt_opts++] = optarg;
-                break;
 #ifdef HAS_AUDIO
             case QEMU_OPTION_audio_help:
                 AUD_help ();
@@ -5172,21 +4594,6 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_name:
                 qemu_name = optarg;
                 break;
-#if defined(TARGET_SPARC) || defined(TARGET_PPC)
-            case QEMU_OPTION_prom_env:
-                if (nb_prom_envs >= MAX_PROM_ENVS) {
-                    fprintf(stderr, "Too many prom variables\n");
-                    exit(1);
-                }
-                prom_envs[nb_prom_envs] = optarg;
-                nb_prom_envs++;
-                break;
-#endif
-#ifdef TARGET_ARM
-            case QEMU_OPTION_old_param:
-                old_param = 1;
-                break;
-#endif
             case QEMU_OPTION_clock:
                 configure_alarms(optarg);
                 break;
@@ -5271,7 +4678,6 @@ int main(int argc, char **argv, char **envp)
            monitor_device = "stdio";
     }
 
-#ifndef _WIN32
     if (daemonize) {
     pid_t pid;
 
@@ -5314,7 +4720,6 @@ int main(int argc, char **argv, char **envp)
         signal(SIGTTOU, SIG_IGN);
         signal(SIGTTIN, SIG_IGN);
     }
-#endif
 
     if (pid_file && qemu_create_pidfile(pid_file) != 0) {
         if (daemonize) {
@@ -5405,11 +4810,6 @@ int main(int argc, char **argv, char **envp)
     }
     }
 #endif
-
-    /* init the bluetooth world */
-    for (i = 0; i < nb_bt_opts; i++)
-        if (bt_parse(bt_opts[i]))
-            exit(1);
 
     /* init the memory */
     phys_ram_size = machine->ram_require & ~RAMSIZE_FIXED;
