@@ -66,17 +66,9 @@ OBJS+=sd.o ssi-sd.o
 OBJS+=buffered_file.o migration.o migration-tcp.o net.o qemu-sockets.o
 OBJS+=qemu-char.o aio.o net-checksum.o savevm.o cache-utils.o
 
-ifdef CONFIG_BRLAPI
-OBJS+= baum.o
-LIBS+=-lbrlapi
-endif
-
 OBJS+=migration-exec.o
 
 AUDIO_OBJS = audio.o noaudio.o wavaudio.o mixeng.o
-ifdef CONFIG_SDL
-AUDIO_OBJS += sdlaudio.o
-endif
 ifdef CONFIG_OSS
 AUDIO_OBJS += ossaudio.o
 endif
@@ -113,9 +105,6 @@ endif
 AUDIO_OBJS+= wavcapture.o
 OBJS+=$(addprefix audio/, $(AUDIO_OBJS))
 
-ifdef CONFIG_SDL
-OBJS+=sdl.o x_keymap.o
-endif
 ifdef CONFIG_CURSES
 OBJS+=curses.o
 endif
@@ -131,13 +120,7 @@ endif
 
 LIBS+=$(VDE_LIBS)
 
-cocoa.o: cocoa.m
-
-sdl.o: sdl.c keymaps.c sdl_keysym.h
-
-sdl.o audio/sdlaudio.o: CFLAGS += $(SDL_CFLAGS)
-
-vnc.o: vnc.c keymaps.c sdl_keysym.h vnchextile.h d3des.c d3des.h
+vnc.o: vnc.c keymaps.c vnchextile.h d3des.c d3des.h
 
 vnc.o: CFLAGS += $(CONFIG_VNC_TLS_CFLAGS)
 

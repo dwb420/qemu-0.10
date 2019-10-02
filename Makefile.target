@@ -204,7 +204,7 @@ LDFLAGS+=-p
 main.o: CFLAGS+=-p
 endif
 
-$(QEMU_PROG): LIBS += $(SDL_LIBS) $(COCOA_LIBS) $(CURSES_LIBS) $(BRLAPI_LIBS) $(VDE_LIBS)
+$(QEMU_PROG): LIBS += $(CURSES_LIBS) $(BRLAPI_LIBS) $(VDE_LIBS)
 
 $(QEMU_PROG): $(OBJS) ../libqemu_common.a libqemu.a
 	$(LINK)
@@ -222,11 +222,6 @@ endif
 clean:
 	rm -f *.o *.a *~ $(PROGS) nwfpe/*.o fpu/*.o
 	rm -f *.d */*.d tcg/*.o
-
-install: all
-ifneq ($(PROGS),)
-	$(INSTALL) -m 755 -s $(PROGS) "$(DESTDIR)$(bindir)"
-endif
 
 # Include automatically generated dependency files
 -include $(wildcard *.d */*.d)

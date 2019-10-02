@@ -276,12 +276,6 @@ void qemu_console_resize(DisplayState *ds, int width, int height);
 void qemu_console_copy(DisplayState *ds, int src_x, int src_y,
                        int dst_x, int dst_y, int w, int h);
 
-/* sdl.c */
-void sdl_display_init(DisplayState *ds, int full_screen, int no_frame);
-
-/* cocoa.m */
-void cocoa_display_init(DisplayState *ds, int full_screen);
-
 /* vnc.c */
 void vnc_display_init(DisplayState *ds);
 void vnc_display_close(DisplayState *ds);

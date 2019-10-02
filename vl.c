@@ -132,7 +132,6 @@ enum vga_retrace_method vga_retrace_method = VGA_RETRACE_DUMB;
 static DisplayState *display_state;
 int nographic;
 static int curses;
-static int sdl;
 const char* keyboard_layout = NULL;
 int64_t ticks_per_sec;
 ram_addr_t ram_size;
@@ -149,9 +148,6 @@ int graphic_height = 600;
 int graphic_depth = 15;
 
 static int full_screen = 0;
-#ifdef CONFIG_SDL
-static int no_frame = 0;
-#endif
 int no_quit = 0;
 CharDriverState *serial_hds[MAX_SERIAL_PORTS];
 CharDriverState *parallel_hds[MAX_PARALLEL_PORTS];
@@ -2209,10 +2205,6 @@ static int usb_device_add(const char *devname)
         dev = usb_wacom_init();
     } else if (strstart(devname, "serial:", &p)) {
         dev = usb_serial_init(p);
-#ifdef CONFIG_BRLAPI
-    } else if (!strcmp(devname, "braille")) {
-        dev = usb_baum_init();
-#endif
     } else if (strstart(devname, "net:", &p)) {
         int nic = nb_nics;
 
@@ -3413,13 +3405,7 @@ static void help(int exitcode)
            "Display options:\n"
            "-nographic      disable graphical output and redirect serial I/Os to console\n"
 #ifdef CONFIG_CURSES
-           "-curses         use a curses/ncurses interface instead of SDL\n"
-#endif
-#ifdef CONFIG_SDL
-           "-no-frame       open SDL window without a frame and window decorations\n"
-           "-alt-grab       use Ctrl-Alt-Shift to grab mouse (instead of Ctrl-Alt)\n"
-           "-no-quit        disable SDL window close capability\n"
-           "-sdl            enable SDL\n"
+           "-curses         use a curses/ncurses interface\n"
 #endif
            "-portrait       rotate graphical output 90 deg left (only PXA LCD)\n"
            "-vga [std|cirrus|vmware|none]\n"
@@ -3580,7 +3566,6 @@ enum {
     QEMU_OPTION_no_frame,
     QEMU_OPTION_alt_grab,
     QEMU_OPTION_no_quit,
-    QEMU_OPTION_sdl,
     QEMU_OPTION_portrait,
     QEMU_OPTION_vga,
     QEMU_OPTION_full_screen,
@@ -3687,12 +3672,6 @@ static const QEMUOption qemu_options[] = {
     { "nographic", 0, QEMU_OPTION_nographic },
 #ifdef CONFIG_CURSES
     { "curses", 0, QEMU_OPTION_curses },
-#endif
-#ifdef CONFIG_SDL
-    { "no-frame", 0, QEMU_OPTION_no_frame },
-    { "alt-grab", 0, QEMU_OPTION_alt_grab },
-    { "no-quit", 0, QEMU_OPTION_no_quit },
-    { "sdl", 0, QEMU_OPTION_sdl },
 #endif
     { "portrait", 0, QEMU_OPTION_portrait },
     { "vga", HAS_ARG, QEMU_OPTION_vga },
@@ -4497,20 +4476,6 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_full_screen:
                 full_screen = 1;
                 break;
-#ifdef CONFIG_SDL
-            case QEMU_OPTION_no_frame:
-                no_frame = 1;
-                break;
-            case QEMU_OPTION_alt_grab:
-                alt_grab = 1;
-                break;
-            case QEMU_OPTION_no_quit:
-                no_quit = 1;
-                break;
-            case QEMU_OPTION_sdl:
-                sdl = 1;
-                break;
-#endif
             case QEMU_OPTION_pidfile:
                 pid_file = optarg;
                 break;
@@ -4867,7 +4832,6 @@ int main(int argc, char **argv, char **envp)
     register_savevm("timer", 0, 2, timer_save, timer_load, NULL);
     register_savevm_live("ram", 0, 3, ram_save_live, NULL, ram_load, NULL);
 
-    /* must be after terminal init, SDL library changes signal handlers */
     termsig_setup();
 
     /* Maintain compatibility with multiple stdio monitors */
@@ -4994,10 +4958,6 @@ int main(int argc, char **argv, char **envp)
                     if (vnc_display_open(ds, vnc_display) < 0)
                         exit(1);
                 }
-#if defined(CONFIG_SDL)
-                if (sdl || !vnc_display)
-                    sdl_display_init(ds, full_screen, no_frame);
-#endif
             }
     }
     dpy_resize(ds);
@@ -5011,7 +4971,7 @@ int main(int argc, char **argv, char **envp)
         dcl = dcl->next;
     }
 
-    if (nographic || (vnc_display && !sdl)) {
+    if (nographic || (vnc_display)) {
         nographic_timer = qemu_new_timer(rt_clock, nographic_update, NULL);
         qemu_mod_timer(nographic_timer, qemu_get_clock(rt_clock));
     }

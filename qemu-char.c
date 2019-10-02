@@ -40,7 +40,6 @@
 #include <sys/time.h>
 #include <zlib.h>
 
-#ifndef _WIN32
 #include <sys/times.h>
 #include <sys/wait.h>
 #include <termios.h>
@@ -50,51 +49,15 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <net/if.h>
-#ifdef __NetBSD__
-#include <net/if_tap.h>
-#endif
-#ifdef __linux__
 #include <linux/if_tun.h>
-#endif
 #include <arpa/inet.h>
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/select.h>
-#ifdef _BSD
-#include <sys/stat.h>
-#ifdef __FreeBSD__
-#include <libutil.h>
-#include <dev/ppbus/ppi.h>
-#include <dev/ppbus/ppbconf.h>
-#else
-#include <util.h>
-#endif
-#elif defined (__GLIBC__) && defined (__FreeBSD_kernel__)
-#include <freebsd/stdlib.h>
-#else
-#ifdef __linux__
 #include <pty.h>
 
 #include <linux/ppdev.h>
 #include <linux/parport.h>
-#endif
-#ifdef __sun__
-#include <sys/stat.h>
-#include <sys/ethernet.h>
-#include <sys/sockio.h>
-#include <netinet/arp.h>
-#include <netinet/in.h>
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h> // must come after ip.h
-#include <netinet/udp.h>
-#include <netinet/tcp.h>
-#include <net/if.h>
-#include <syslog.h>
-#include <stropts.h>
-#endif
-#endif
-#endif
 
 #include "qemu_socket.h"
 
@@ -435,32 +398,6 @@ static CharDriverState *qemu_chr_open_mux(CharDriverState *drv)
     return chr;
 }
 
-
-#ifdef _WIN32
-int send_all(int fd, const void *buf, int len1)
-{
-    int ret, len;
-
-    len = len1;
-    while (len > 0) {
-        ret = send(fd, buf, len, 0);
-        if (ret < 0) {
-            errno = WSAGetLastError();
-            if (errno != WSAEWOULDBLOCK) {
-                return -1;
-            }
-        } else if (ret == 0) {
-            break;
-        } else {
-            buf += ret;
-            len -= ret;
-        }
-    }
-    return len1 - len;
-}
-
-#else
-
 static int unix_write(int fd, const uint8_t *buf, int len1)
 {
     int ret, len;
@@ -485,9 +422,6 @@ int send_all(int fd, const void *buf, int len1)
 {
     return unix_write(fd, buf, len1);
 }
-#endif /* !_WIN32 */
-
-#ifndef _WIN32
 
 typedef struct {
     int fd_in, fd_out;
@@ -721,66 +655,6 @@ static CharDriverState *qemu_chr_open_stdio(void)
     return chr;
 }
 
-#ifdef __sun__
-/* Once Solaris has openpty(), this is going to be removed. */
-int openpty(int *amaster, int *aslave, char *name,
-            struct termios *termp, struct winsize *winp)
-{
-        const char *slave;
-        int mfd = -1, sfd = -1;
-
-        *amaster = *aslave = -1;
-
-        mfd = open("/dev/ptmx", O_RDWR | O_NOCTTY);
-        if (mfd < 0)
-                goto err;
-
-        if (grantpt(mfd) == -1 || unlockpt(mfd) == -1)
-                goto err;
-
-        if ((slave = ptsname(mfd)) == NULL)
-                goto err;
-
-        if ((sfd = open(slave, O_RDONLY | O_NOCTTY)) == -1)
-                goto err;
-
-        if (ioctl(sfd, I_PUSH, "ptem") == -1 ||
-            (termp != NULL && tcgetattr(sfd, termp) < 0))
-                goto err;
-
-        if (amaster)
-                *amaster = mfd;
-        if (aslave)
-                *aslave = sfd;
-        if (winp)
-                ioctl(sfd, TIOCSWINSZ, winp);
-
-        return 0;
-
-err:
-        if (sfd != -1)
-                close(sfd);
-        close(mfd);
-        return -1;
-}
-
-void cfmakeraw (struct termios *termios_p)
-{
-        termios_p->c_iflag &=
-                ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
-        termios_p->c_oflag &= ~OPOST;
-        termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
-        termios_p->c_cflag &= ~(CSIZE|PARENB);
-        termios_p->c_cflag |= CS8;
-
-        termios_p->c_cc[VMIN] = 0;
-        termios_p->c_cc[VTIME] = 0;
-}
-#endif
-
-#if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__) \
-    || defined(__NetBSD__) || defined(__OpenBSD__)
-
 typedef struct {
     int fd;
     int connected;
@@ -907,13 +781,8 @@ static CharDriverState *qemu_chr_open_pty(void)
     PtyCharDriver *s;
     struct termios tty;
     int slave_fd, len;
-#if defined(__OpenBSD__)
-    char pty_name[PATH_MAX];
-#define q_ptsname(x) pty_name
-#else
     char *pty_name = NULL;
 #define q_ptsname(x) ptsname(x)
-#endif
 
     chr = qemu_mallocz(sizeof(CharDriverState));
     s = qemu_mallocz(sizeof(PtyCharDriver));
@@ -1106,14 +975,7 @@ static CharDriverState *qemu_chr_open_tty(const char *filename)
     qemu_chr_reset(chr);
     return chr;
 }
-#else  /* ! __linux__ && ! __sun__ */
-static CharDriverState *qemu_chr_open_pty(void)
-{
-    return NULL;
-}
-#endif /* __linux__ || __sun__ */
 
-#if defined(__linux__)
 typedef struct {
     int fd;
     int mode;
@@ -1251,413 +1113,6 @@ static CharDriverState *qemu_chr_open_pp(const char *filename)
 
     return chr;
 }
-#endif /* __linux__ */
-
-#if defined(__FreeBSD__)
-static int pp_ioctl(CharDriverState *chr, int cmd, void *arg)
-{
-    int fd = (int)chr->opaque;
-    uint8_t b;
-
-    switch(cmd) {
-    case CHR_IOCTL_PP_READ_DATA:
-        if (ioctl(fd, PPIGDATA, &b) < 0)
-            return -ENOTSUP;
-        *(uint8_t *)arg = b;
-        break;
-    case CHR_IOCTL_PP_WRITE_DATA:
-        b = *(uint8_t *)arg;
-        if (ioctl(fd, PPISDATA, &b) < 0)
-            return -ENOTSUP;
-        break;
-    case CHR_IOCTL_PP_READ_CONTROL:
-        if (ioctl(fd, PPIGCTRL, &b) < 0)
-            return -ENOTSUP;
-        *(uint8_t *)arg = b;
-        break;
-    case CHR_IOCTL_PP_WRITE_CONTROL:
-        b = *(uint8_t *)arg;
-        if (ioctl(fd, PPISCTRL, &b) < 0)
-            return -ENOTSUP;
-        break;
-    case CHR_IOCTL_PP_READ_STATUS:
-        if (ioctl(fd, PPIGSTATUS, &b) < 0)
-            return -ENOTSUP;
-        *(uint8_t *)arg = b;
-        break;
-    default:
-        return -ENOTSUP;
-    }
-    return 0;
-}
-
-static CharDriverState *qemu_chr_open_pp(const char *filename)
-{
-    CharDriverState *chr;
-    int fd;
-
-    fd = open(filename, O_RDWR);
-    if (fd < 0)
-        return NULL;
-
-    chr = qemu_mallocz(sizeof(CharDriverState));
-    chr->opaque = (void *)fd;
-    chr->chr_write = null_chr_write;
-    chr->chr_ioctl = pp_ioctl;
-    return chr;
-}
-#endif
-
-#else /* _WIN32 */
-
-typedef struct {
-    int max_size;
-    HANDLE hcom, hrecv, hsend;
-    OVERLAPPED orecv, osend;
-    BOOL fpipe;
-    DWORD len;
-} WinCharState;
-
-#define NSENDBUF 2048
-#define NRECVBUF 2048
-#define MAXCONNECT 1
-#define NTIMEOUT 5000
-
-static int win_chr_poll(void *opaque);
-static int win_chr_pipe_poll(void *opaque);
-
-static void win_chr_close(CharDriverState *chr)
-{
-    WinCharState *s = chr->opaque;
-
-    if (s->hsend) {
-        CloseHandle(s->hsend);
-        s->hsend = NULL;
-    }
-    if (s->hrecv) {
-        CloseHandle(s->hrecv);
-        s->hrecv = NULL;
-    }
-    if (s->hcom) {
-        CloseHandle(s->hcom);
-        s->hcom = NULL;
-    }
-    if (s->fpipe)
-        qemu_del_polling_cb(win_chr_pipe_poll, chr);
-    else
-        qemu_del_polling_cb(win_chr_poll, chr);
-}
-
-static int win_chr_init(CharDriverState *chr, const char *filename)
-{
-    WinCharState *s = chr->opaque;
-    COMMCONFIG comcfg;
-    COMMTIMEOUTS cto = { 0, 0, 0, 0, 0};
-    COMSTAT comstat;
-    DWORD size;
-    DWORD err;
-
-    s->hsend = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!s->hsend) {
-        fprintf(stderr, "Failed CreateEvent\n");
-        goto fail;
-    }
-    s->hrecv = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!s->hrecv) {
-        fprintf(stderr, "Failed CreateEvent\n");
-        goto fail;
-    }
-
-    s->hcom = CreateFile(filename, GENERIC_READ|GENERIC_WRITE, 0, NULL,
-                      OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
-    if (s->hcom == INVALID_HANDLE_VALUE) {
-        fprintf(stderr, "Failed CreateFile (%lu)\n", GetLastError());
-        s->hcom = NULL;
-        goto fail;
-    }
-
-    if (!SetupComm(s->hcom, NRECVBUF, NSENDBUF)) {
-        fprintf(stderr, "Failed SetupComm\n");
-        goto fail;
-    }
-
-    ZeroMemory(&comcfg, sizeof(COMMCONFIG));
-    size = sizeof(COMMCONFIG);
-    GetDefaultCommConfig(filename, &comcfg, &size);
-    comcfg.dcb.DCBlength = sizeof(DCB);
-    CommConfigDialog(filename, NULL, &comcfg);
-
-    if (!SetCommState(s->hcom, &comcfg.dcb)) {
-        fprintf(stderr, "Failed SetCommState\n");
-        goto fail;
-    }
-
-    if (!SetCommMask(s->hcom, EV_ERR)) {
-        fprintf(stderr, "Failed SetCommMask\n");
-        goto fail;
-    }
-
-    cto.ReadIntervalTimeout = MAXDWORD;
-    if (!SetCommTimeouts(s->hcom, &cto)) {
-        fprintf(stderr, "Failed SetCommTimeouts\n");
-        goto fail;
-    }
-
-    if (!ClearCommError(s->hcom, &err, &comstat)) {
-        fprintf(stderr, "Failed ClearCommError\n");
-        goto fail;
-    }
-    qemu_add_polling_cb(win_chr_poll, chr);
-    return 0;
-
- fail:
-    win_chr_close(chr);
-    return -1;
-}
-
-static int win_chr_write(CharDriverState *chr, const uint8_t *buf, int len1)
-{
-    WinCharState *s = chr->opaque;
-    DWORD len, ret, size, err;
-
-    len = len1;
-    ZeroMemory(&s->osend, sizeof(s->osend));
-    s->osend.hEvent = s->hsend;
-    while (len > 0) {
-        if (s->hsend)
-            ret = WriteFile(s->hcom, buf, len, &size, &s->osend);
-        else
-            ret = WriteFile(s->hcom, buf, len, &size, NULL);
-        if (!ret) {
-            err = GetLastError();
-            if (err == ERROR_IO_PENDING) {
-                ret = GetOverlappedResult(s->hcom, &s->osend, &size, TRUE);
-                if (ret) {
-                    buf += size;
-                    len -= size;
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        } else {
-            buf += size;
-            len -= size;
-        }
-    }
-    return len1 - len;
-}
-
-static int win_chr_read_poll(CharDriverState *chr)
-{
-    WinCharState *s = chr->opaque;
-
-    s->max_size = qemu_chr_can_read(chr);
-    return s->max_size;
-}
-
-static void win_chr_readfile(CharDriverState *chr)
-{
-    WinCharState *s = chr->opaque;
-    int ret, err;
-    uint8_t buf[1024];
-    DWORD size;
-
-    ZeroMemory(&s->orecv, sizeof(s->orecv));
-    s->orecv.hEvent = s->hrecv;
-    ret = ReadFile(s->hcom, buf, s->len, &size, &s->orecv);
-    if (!ret) {
-        err = GetLastError();
-        if (err == ERROR_IO_PENDING) {
-            ret = GetOverlappedResult(s->hcom, &s->orecv, &size, TRUE);
-        }
-    }
-
-    if (size > 0) {
-        qemu_chr_read(chr, buf, size);
-    }
-}
-
-static void win_chr_read(CharDriverState *chr)
-{
-    WinCharState *s = chr->opaque;
-
-    if (s->len > s->max_size)
-        s->len = s->max_size;
-    if (s->len == 0)
-        return;
-
-    win_chr_readfile(chr);
-}
-
-static int win_chr_poll(void *opaque)
-{
-    CharDriverState *chr = opaque;
-    WinCharState *s = chr->opaque;
-    COMSTAT status;
-    DWORD comerr;
-
-    ClearCommError(s->hcom, &comerr, &status);
-    if (status.cbInQue > 0) {
-        s->len = status.cbInQue;
-        win_chr_read_poll(chr);
-        win_chr_read(chr);
-        return 1;
-    }
-    return 0;
-}
-
-static CharDriverState *qemu_chr_open_win(const char *filename)
-{
-    CharDriverState *chr;
-    WinCharState *s;
-
-    chr = qemu_mallocz(sizeof(CharDriverState));
-    s = qemu_mallocz(sizeof(WinCharState));
-    chr->opaque = s;
-    chr->chr_write = win_chr_write;
-    chr->chr_close = win_chr_close;
-
-    if (win_chr_init(chr, filename) < 0) {
-        free(s);
-        free(chr);
-        return NULL;
-    }
-    qemu_chr_reset(chr);
-    return chr;
-}
-
-static int win_chr_pipe_poll(void *opaque)
-{
-    CharDriverState *chr = opaque;
-    WinCharState *s = chr->opaque;
-    DWORD size;
-
-    PeekNamedPipe(s->hcom, NULL, 0, NULL, &size, NULL);
-    if (size > 0) {
-        s->len = size;
-        win_chr_read_poll(chr);
-        win_chr_read(chr);
-        return 1;
-    }
-    return 0;
-}
-
-static int win_chr_pipe_init(CharDriverState *chr, const char *filename)
-{
-    WinCharState *s = chr->opaque;
-    OVERLAPPED ov;
-    int ret;
-    DWORD size;
-    char openname[256];
-
-    s->fpipe = TRUE;
-
-    s->hsend = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!s->hsend) {
-        fprintf(stderr, "Failed CreateEvent\n");
-        goto fail;
-    }
-    s->hrecv = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!s->hrecv) {
-        fprintf(stderr, "Failed CreateEvent\n");
-        goto fail;
-    }
-
-    snprintf(openname, sizeof(openname), "\\\\.\\pipe\\%s", filename);
-    s->hcom = CreateNamedPipe(openname, PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
-                              PIPE_TYPE_BYTE | PIPE_READMODE_BYTE |
-                              PIPE_WAIT,
-                              MAXCONNECT, NSENDBUF, NRECVBUF, NTIMEOUT, NULL);
-    if (s->hcom == INVALID_HANDLE_VALUE) {
-        fprintf(stderr, "Failed CreateNamedPipe (%lu)\n", GetLastError());
-        s->hcom = NULL;
-        goto fail;
-    }
-
-    ZeroMemory(&ov, sizeof(ov));
-    ov.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    ret = ConnectNamedPipe(s->hcom, &ov);
-    if (ret) {
-        fprintf(stderr, "Failed ConnectNamedPipe\n");
-        goto fail;
-    }
-
-    ret = GetOverlappedResult(s->hcom, &ov, &size, TRUE);
-    if (!ret) {
-        fprintf(stderr, "Failed GetOverlappedResult\n");
-        if (ov.hEvent) {
-            CloseHandle(ov.hEvent);
-            ov.hEvent = NULL;
-        }
-        goto fail;
-    }
-
-    if (ov.hEvent) {
-        CloseHandle(ov.hEvent);
-        ov.hEvent = NULL;
-    }
-    qemu_add_polling_cb(win_chr_pipe_poll, chr);
-    return 0;
-
- fail:
-    win_chr_close(chr);
-    return -1;
-}
-
-
-static CharDriverState *qemu_chr_open_win_pipe(const char *filename)
-{
-    CharDriverState *chr;
-    WinCharState *s;
-
-    chr = qemu_mallocz(sizeof(CharDriverState));
-    s = qemu_mallocz(sizeof(WinCharState));
-    chr->opaque = s;
-    chr->chr_write = win_chr_write;
-    chr->chr_close = win_chr_close;
-
-    if (win_chr_pipe_init(chr, filename) < 0) {
-        free(s);
-        free(chr);
-        return NULL;
-    }
-    qemu_chr_reset(chr);
-    return chr;
-}
-
-static CharDriverState *qemu_chr_open_win_file(HANDLE fd_out)
-{
-    CharDriverState *chr;
-    WinCharState *s;
-
-    chr = qemu_mallocz(sizeof(CharDriverState));
-    s = qemu_mallocz(sizeof(WinCharState));
-    s->hcom = fd_out;
-    chr->opaque = s;
-    chr->chr_write = win_chr_write;
-    qemu_chr_reset(chr);
-    return chr;
-}
-
-static CharDriverState *qemu_chr_open_win_con(const char *filename)
-{
-    return qemu_chr_open_win_file(GetStdHandle(STD_OUTPUT_HANDLE));
-}
-
-static CharDriverState *qemu_chr_open_win_file_out(const char *file_out)
-{
-    HANDLE fd_out;
-
-    fd_out = CreateFile(file_out, GENERIC_WRITE, FILE_SHARE_READ, NULL,
-                        OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (fd_out == INVALID_HANDLE_VALUE)
-        return NULL;
-
-    return qemu_chr_open_win_file(fd_out);
-}
-#endif /* !_WIN32 */
 
 /***********************************************************/
 /* UDP Net console */
@@ -1924,20 +1379,16 @@ static void tcp_chr_accept(void *opaque)
     CharDriverState *chr = opaque;
     TCPCharDriver *s = chr->opaque;
     struct sockaddr_in saddr;
-#ifndef _WIN32
     struct sockaddr_un uaddr;
-#endif
     struct sockaddr *addr;
     socklen_t len;
     int fd;
 
     for(;;) {
-#ifndef _WIN32
 	if (s->is_unix) {
 	    len = sizeof(uaddr);
 	    addr = (struct sockaddr *)&uaddr;
 	} else
-#endif
 	{
 	    len = sizeof(saddr);
 	    addr = (struct sockaddr *)&saddr;
@@ -2113,7 +1564,6 @@ CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*i
     } else if (!strcmp(filename, "msmouse")) {
         chr = qemu_chr_open_msmouse();
     } else
-#ifndef _WIN32
     if (strstart(filename, "unix:", &p)) {
 	chr = qemu_chr_open_tcp(p, 0, 1);
     } else if (strstart(filename, "file:", &p)) {
@@ -2125,40 +1575,12 @@ CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*i
     } else if (!strcmp(filename, "stdio")) {
         chr = qemu_chr_open_stdio();
     } else
-#if defined(__linux__)
     if (strstart(filename, "/dev/parport", NULL)) {
         chr = qemu_chr_open_pp(filename);
     } else
-#elif defined(__FreeBSD__)
-    if (strstart(filename, "/dev/ppi", NULL)) {
-        chr = qemu_chr_open_pp(filename);
-    } else
-#endif
-#if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__) \
-    || defined(__NetBSD__) || defined(__OpenBSD__)
     if (strstart(filename, "/dev/", NULL)) {
         chr = qemu_chr_open_tty(filename);
     } else
-#endif
-#else /* !_WIN32 */
-    if (strstart(filename, "COM", NULL)) {
-        chr = qemu_chr_open_win(filename);
-    } else
-    if (strstart(filename, "pipe:", &p)) {
-        chr = qemu_chr_open_win_pipe(p);
-    } else
-    if (strstart(filename, "con:", NULL)) {
-        chr = qemu_chr_open_win_con(filename);
-    } else
-    if (strstart(filename, "file:", &p)) {
-        chr = qemu_chr_open_win_file_out(p);
-    } else
-#endif
-#ifdef CONFIG_BRLAPI
-    if (!strcmp(filename, "braille")) {
-        chr = chr_baum_init();
-    } else
-#endif
     {
         chr = NULL;
     }

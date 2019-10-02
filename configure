@@ -16,9 +16,8 @@ TMPO="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.o"
 TMPE="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}"
 TMPS="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.S"
 TMPI="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.i"
-TMPSDLLOG="${TMPDIR1}/qemu-conf-sdl-$$-${RANDOM}.log"
 
-trap "rm -f $TMPC $TMPO $TMPE $TMPS $TMPI $TMPSDLLOG; exit" 0 2 3 15
+trap "rm -f $TMPC $TMPO $TMPE $TMPS $TMPI; exit" 0 2 3 15
 
 # default parameters
 prefix=""
@@ -93,7 +92,6 @@ esac
 gprof="no"
 sparse="no"
 bigendian="no"
-mingw32="no"
 EXESUF=""
 gdbstub="yes"
 slirp="yes"
@@ -104,7 +102,6 @@ oss_lib=""
 vnc_tls="yes"
 linux="no"
 profiler="no"
-check_gfx="no"
 softmmu="yes"
 linux_user="no"
 build_docs="no"
@@ -118,8 +115,6 @@ kerneldir=""
 aix="no"
 blobs="no"
 fdt="yes"
-sdl_x11="no"
-sdl="no"
 
 # OS specific
 if check_define __linux__ ; then
@@ -190,8 +185,6 @@ for opt do
   ;;
   --static) static="yes"
   ;;
-  --disable-sdl) sdl="no"
-  ;;
   --fmod-lib=*) fmod_lib="$optarg"
   ;;
   --fmod-inc=*) fmod_inc="$optarg"
@@ -212,13 +205,9 @@ for opt do
   ;;
   --disable-vde) vde="no"
   ;;
-  --disable-brlapi) brlapi="no"
-  ;;
   --disable-kvm) kvm="no"
   ;;
   --enable-profiler) profiler="yes"
-  ;;
-  --disable-gfx-check) check_gfx="no"
   ;;
   --disable-system) softmmu="no"
   ;;
@@ -290,13 +279,11 @@ echo "  --install=INSTALL        use specified install [$install]"
 echo "  --static                 enable static build [$static]"
 echo "  --enable-sparse          enable sparse checker"
 echo "  --disable-sparse         disable sparse checker (default)"
-echo "  --disable-sdl            disable SDL"
 echo "  --audio-drv-list=LIST    set audio drivers list:"
 echo "                           Available drivers: $audio_possible_drivers"
 echo "  --audio-card-list=LIST   set list of emulated audio cards [$audio_card_list]"
 echo "                           Available cards: $audio_possible_cards"
 echo "  --enable-mixemu          enable mixer emulation"
-echo "  --disable-brlapi         disable BrlAPI"
 echo "  --disable-vnc-tls        disable TLS encryption for VNC server"
 echo "  --disable-curses         disable curses output"
 echo "  --disable-kvm            disable KVM acceleration support"
@@ -317,13 +304,6 @@ echo "  --kerneldir=PATH         look for kernel includes in PATH"
 echo ""
 echo "NOTE: The object files are built at the place where configure is launched"
 exit 1
-fi
-
-if test "$mingw32" = "yes" ; then
-    linux="no"
-    EXESUF=".exe"
-    oss="no"
-    linux_user="no"
 fi
 
 if test ! -x "$(which cgcc 2>/dev/null)"; then
@@ -399,64 +379,6 @@ else
     echo "Make sure to have the zlib libs and headers installed."
     echo
     exit 1
-fi
-
-##########################################
-# SDL probe
-
-sdl_too_old=no
-
-if test -z "$sdl" ; then
-    sdl_config="sdl-config"
-    sdl=no
-    sdl_static=no
-
-cat > $TMPC << EOF
-#include <SDL.h>
-#undef main /* We don't want SDL to override our main() */
-int main( void ) { return SDL_Init (SDL_INIT_VIDEO); }
-EOF
-    if $cc $ARCH_CFLAGS -o $TMPE ${OS_CFLAGS} `$sdl_config --cflags 2> /dev/null` $TMPC `$sdl_config --libs 2> /dev/null` > $TMPSDLLOG 2>&1 ; then
-        _sdlversion=`$sdl_config --version | sed 's/[^0-9]//g'`
-        if test "$_sdlversion" -lt 121 ; then
-            sdl_too_old=yes
-        else
-            sdl=yes
-        fi
-
-        # static link with sdl ?
-        if test "$sdl" = "yes" ; then
-            aa="no"
-            `$sdl_config --static-libs 2>/dev/null | grep \\\-laa > /dev/null` && aa="yes"
-            sdl_static_libs=`$sdl_config --static-libs 2>/dev/null`
-            if [ "$aa" = "yes" ] ; then
-                sdl_static_libs="$sdl_static_libs `aalib-config --static-libs`"
-            fi
-
-            if $cc -o $TMPE ${OS_CFLAGS} `$sdl_config --cflags 2> /dev/null` $TMPC $sdl_static_libs > /dev/null 2> /dev/null; then
-                sdl_static=yes
-            fi
-        fi # static link
-    fi # sdl compile test
-else
-    if test "$sdl" = "yes" ; then
-       audio_drv_list="`echo $audio_drv_list | sed s,coreaudio,,g`"
-    fi
-fi # -z $sdl
-
-if test "$sdl" = "yes" ; then
-cat > $TMPC <<EOF
-#include <SDL.h>
-#if defined(SDL_VIDEO_DRIVER_X11)
-#include <X11/XKBlib.h>
-#else
-#error No x11 support
-#endif
-int main(void) { return 0; }
-EOF
-    if $cc $ARCH_CFLAGS -o $TMPE ${OS_CFLAGS} `$sdl_config --cflags 2> /dev/null` $TMPC `$sdl_config --libs 2> /dev/null` > /dev/null 2>&1 ; then
-	sdl_x11="yes"
-    fi
 fi
 
 ##########################################
@@ -548,8 +470,7 @@ for drv in $audio_drv_list; do
         "pa_simple *s = NULL; pa_simple_free(s); return 0;"
     ;;
 
-    oss|sdl|core|wav|dsound)
-    # XXX: Probes for CoreAudio, DirectSound, SDL(?)
+    oss|core|wav|dsound)
     ;;
 
     *)
@@ -563,20 +484,6 @@ for drv in $audio_drv_list; do
     ;;
     esac
 done
-
-##########################################
-# BrlAPI probe
-
-if test -z "$brlapi" ; then
-    brlapi=no
-cat > $TMPC << EOF
-#include <brlapi.h>
-int main( void ) { return brlapi__openConnection (NULL, NULL, NULL); }
-EOF
-    if $cc ${ARCH_CFLAGS} -o $TMPE ${OS_CFLAGS} $TMPC -lbrlapi > /dev/null 2> /dev/null ; then
-	    brlapi=yes
-    fi # brlapi compile test
-fi # -z $brlapi
 
 ##########################################
 # curses probe
@@ -704,31 +611,19 @@ if test "$rt" = "yes" ; then
   AIOLIBS="$AIOLIBS -lrt"
 fi
 
-if test "$mingw32" = "yes" ; then
-  if test -z "$prefix" ; then
-      prefix="c:\\\\Program Files\\\\Qemu"
-  fi
-  mansuffix=""
-  datasuffix=""
-  docsuffix=""
-  binsuffix=""
-else
-  if test -z "$prefix" ; then
-      prefix="/usr/local"
-  fi
-  mansuffix="/share/man"
-  datasuffix="/share/qemu"
-  docsuffix="/share/doc/qemu"
-  binsuffix="/bin"
+if test -z "$prefix" ; then
+  prefix="/usr/local"
 fi
+mansuffix="/share/man"
+datasuffix="/share/qemu"
+docsuffix="/share/doc/qemu"
+binsuffix="/bin"
 
 echo "Install prefix    $prefix"
 echo "BIOS directory    $prefix$datasuffix"
 echo "binary directory  $prefix$binsuffix"
-if test "$mingw32" = "no" ; then
 echo "Manual directory  $prefix$mansuffix"
 echo "ELF interp prefix $interp_prefix"
-fi
 echo "Source path       $source_path"
 echo "C compiler        $cc"
 echo "Host C compiler   $host_cc"
@@ -742,12 +637,7 @@ echo "gprof enabled     $gprof"
 echo "sparse enabled    $sparse"
 echo "profiler          $profiler"
 echo "static build      $static"
-echo "SDL support       $sdl"
-if test "$sdl" != "no" ; then
-    echo "SDL static link   $sdl_static"
-fi
 echo "curses support    $curses"
-echo "mingw32 support   $mingw32"
 echo "Audio drivers     $audio_drv_list"
 echo "Extra audio cards $audio_card_list"
 echo "Mixer emulation   $mixemu"
@@ -759,8 +649,6 @@ fi
 if test -n "$sparc_cpu"; then
     echo "Target Sparc Arch $sparc_cpu"
 fi
-echo "brlapi support    $brlapi"
-echo "Documentation     $build_docs"
 [ ! -z "$uname_release" ] && \
 echo "uname -r          $uname_release"
 echo "NPTL support      $nptl"
@@ -770,16 +658,6 @@ echo "Install blobs     $blobs"
 echo "KVM support       $kvm"
 echo "fdt support       $fdt"
 
-if test $sdl_too_old = "yes"; then
-echo "-> Your SDL version is too old - please upgrade to have SDL support"
-fi
-if [ -s $TMPSDLLOG ]; then
-  echo "The error log from compiling the libSDL test is: "
-  cat $TMPSDLLOG
-fi
-#if test "$sdl_static" = "no"; then
-#  echo "WARNING: cannot compile statically with SDL - qemu-fast won't have a graphical output"
-#fi
 config_mak="config-host.mak"
 config_h="config-host.h"
 
@@ -840,26 +718,22 @@ if test "$bigendian" = "yes" ; then
   echo "#define WORDS_BIGENDIAN 1" >> $config_h
 fi
 echo "#define HOST_LONG_BITS $hostlongbits" >> $config_h
-if test "$mingw32" = "yes" ; then
-  echo "CONFIG_WIN32=yes" >> $config_mak
-  echo "#define CONFIG_WIN32 1" >> $config_h
-else
-  cat > $TMPC << EOF
+
+cat > $TMPC << EOF
 #include <byteswap.h>
 int main(void) { return bswap_32(0); }
 EOF
-  if $cc $ARCH_CFLAGS -o $TMPE $TMPC >/dev/null 2> /dev/null ; then
-    echo "#define HAVE_BYTESWAP_H 1" >> $config_h
-  fi
-  cat > $TMPC << EOF
+if $cc $ARCH_CFLAGS -o $TMPE $TMPC >/dev/null 2> /dev/null ; then
+  echo "#define HAVE_BYTESWAP_H 1" >> $config_h
+fi
+cat > $TMPC << EOF
 #include <sys/endian.h>
 #include <sys/types.h>
 #include <machine/bswap.h>
 int main(void) { return bswap32(0); }
 EOF
-  if $cc $ARCH_CFLAGS -o $TMPE $TMPC >/dev/null 2> /dev/null ; then
-    echo "#define HAVE_MACHINE_BSWAP_H 1" >> $config_h
-  fi
+if $cc $ARCH_CFLAGS -o $TMPE $TMPC >/dev/null 2> /dev/null ; then
+  echo "#define HAVE_MACHINE_BSWAP_H 1" >> $config_h
 fi
 
 if test "$gdbstub" = "yes" ; then
@@ -926,42 +800,10 @@ echo "TARGET_DIRS=$target_list" >> $config_mak
 if [ "$build_docs" = "yes" ] ; then
   echo "BUILD_DOCS=yes" >> $config_mak
 fi
-if test "$static" = "yes"; then
-  sdl1=$sdl_static
-else
-  sdl1=$sdl
-fi
-if test "$sdl1" = "yes" ; then
-  echo "#define CONFIG_SDL 1" >> $config_h
-  echo "CONFIG_SDL=yes" >> $config_mak
-  if test "$target_softmmu" = "no" -o "$static" = "yes"; then
-    echo "SDL_LIBS=$sdl_static_libs" >> $config_mak
-  elif test "$sdl_x11" = "yes" ; then
-    echo "SDL_LIBS=`$sdl_config --libs` -lX11" >> $config_mak
-  else
-    echo "SDL_LIBS=`$sdl_config --libs`" >> $config_mak
-  fi
-  if [ "${aa}" = "yes" ] ; then
-    echo "SDL_CFLAGS=`$sdl_config --cflags` `aalib-config --cflags`" >> $config_mak
-  else
-    echo "SDL_CFLAGS=`$sdl_config --cflags`" >> $config_mak
-  fi
-fi
 if test "$curses" = "yes" ; then
   echo "#define CONFIG_CURSES 1" >> $config_h
   echo "CONFIG_CURSES=yes" >> $config_mak
   echo "CURSES_LIBS=-lcurses" >> $config_mak
-fi
-if test "$brlapi" = "yes" ; then
-  echo "CONFIG_BRLAPI=yes" >> $config_mak
-  echo "#define CONFIG_BRLAPI 1" >> $config_h
-  echo "BRLAPI_LIBS=-lbrlapi" >> $config_mak
-fi
-if test "$bluez" = "yes" ; then
-  echo "CONFIG_BLUEZ=yes" >> $config_mak
-  echo "CONFIG_BLUEZ_CFLAGS=$bluez_cflags" >> $config_mak
-  echo "CONFIG_BLUEZ_LIBS=$bluez_libs" >> $config_mak
-  echo "#define CONFIG_BLUEZ 1" >> $config_h
 fi
 if test "$aio" = "yes" ; then
   echo "#define CONFIG_AIO 1" >> $config_h
@@ -1024,15 +866,6 @@ case "$target" in
     exit 1
     ;;
 esac
-
-if test "$target_user_only" = "no" -a "$check_gfx" = "yes" \
-        -a "$sdl" = "no" ; then
-    echo "ERROR: QEMU requires SDL or Cocoa for graphical output"
-    echo "To build QEMU without graphical output configure with --disable-gfx-check"
-    echo "Note that this will disable all output from the virtual graphics card"
-    echo "except through VNC or curses."
-    exit 1;
-fi
 
 #echo "Creating $config_mak, $config_h and $target_dir/Makefile"
 
