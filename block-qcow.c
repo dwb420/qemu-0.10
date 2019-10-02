@@ -780,16 +780,17 @@ static int qcow_create(const char *filename, int64_t total_size,
     }
 
     /* write all the data */
-    write(fd, &header, sizeof(header));
+    int unused=write(fd, &header, sizeof(header));
     if (backing_file) {
-        write(fd, backing_file, backing_filename_len);
+        unused=write(fd, backing_file, backing_filename_len);
     }
     lseek(fd, header_size, SEEK_SET);
     tmp = 0;
     for(i = 0;i < l1_size; i++) {
-        write(fd, &tmp, sizeof(tmp));
+        unused=write(fd, &tmp, sizeof(tmp));
     }
     close(fd);
+    unused=unused;
     return 0;
 }
 

@@ -239,10 +239,11 @@ static int cow_create(const char *filename, int64_t image_sectors,
     }
     cow_header.sectorsize = cpu_to_be32(512);
     cow_header.size = cpu_to_be64(image_sectors * 512);
-    write(cow_fd, &cow_header, sizeof(cow_header));
+    int unused=write(cow_fd, &cow_header, sizeof(cow_header));
     /* resize to include at least all the bitmap */
-    ftruncate(cow_fd, sizeof(cow_header) + ((image_sectors + 7) >> 3));
+    unused=ftruncate(cow_fd, sizeof(cow_header) + ((image_sectors + 7) >> 3));
     close(cow_fd);
+    unused=unused;
     return 0;
 }
 

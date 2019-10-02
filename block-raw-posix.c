@@ -516,7 +516,8 @@ static void aio_signal_handler(int signum)
     if (posix_aio_state) {
         char byte = 0;
 
-        write(posix_aio_state->wfd, &byte, sizeof(byte));
+        int unused=write(posix_aio_state->wfd, &byte, sizeof(byte));
+        unused=unused;
     }
 
     qemu_service_io();
@@ -800,7 +801,8 @@ static int raw_create(const char *filename, int64_t total_size,
               0644);
     if (fd < 0)
         return -EIO;
-    ftruncate(fd, total_size * 512);
+    int unused=ftruncate(fd, total_size * 512);
+    unused=unused;
     close(fd);
     return 0;
 }

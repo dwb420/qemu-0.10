@@ -469,8 +469,6 @@ static int img_convert(int argc, char **argv)
         error("Compression not supported for this file format");
     if (flags & BLOCK_FLAG_ENCRYPT && drv != &bdrv_qcow && drv != &bdrv_qcow2)
         error("Encryption not supported for this file format");
-    if (flags & BLOCK_FLAG_COMPAT6 && drv != &bdrv_vmdk)
-        error("Alternative compatibility level not supported for this file format");
     if (flags & BLOCK_FLAG_ENCRYPT && flags & BLOCK_FLAG_COMPRESS)
         error("Compression and encryption not supported at the same time");
 

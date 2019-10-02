@@ -373,7 +373,8 @@ fork_exec(struct socket *so, const char *ex, int do_pty)
 			  snprintf(buff, sizeof(buff),
                                    "Error: execvp of %s failed: %s\n",
                                    argv[0], strerror(errno));
-			  write(2, buff, strlen(buff)+1);
+			  int unused=write(2, buff, strlen(buff)+1);
+			  unused=unused;
 		  }
 		close(0); close(1); close(2); /* XXX */
 		exit(1);

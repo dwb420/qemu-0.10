@@ -198,7 +198,8 @@ static inline int seek_to_sector(BlockDriverState *bs, int64_t sector_num)
     // read in bitmap for current extent
     lseek(s->fd, bitmap_offset + (extent_offset / 8), SEEK_SET);
 
-    read(s->fd, &bitmap_entry, 1);
+    int unused=read(s->fd, &bitmap_entry, 1);
+    unused=unused;
 
     if (!((bitmap_entry >> (extent_offset % 8)) & 1))
     {

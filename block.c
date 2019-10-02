@@ -280,8 +280,6 @@ static BlockDriver *find_image_format(const char *filename)
 
     drv = find_protocol(filename);
     /* no need to test disk image formats for vvfat */
-    if (drv == &bdrv_vvfat)
-        return drv;
 
     ret = bdrv_file_open(&bs, filename, BDRV_O_RDONLY);
     if (ret < 0)
@@ -370,7 +368,10 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int flags,
             snprintf(backing_filename, sizeof(backing_filename),
                      "%s", filename);
         else
-            realpath(filename, backing_filename);
+        {
+            void *unused = realpath(filename, backing_filename);
+	    unused=unused;
+        }
 
         if (bdrv_create(&bdrv_qcow2, tmp_filename,
                         total_size, backing_filename, 0) < 0) {
@@ -1522,16 +1523,9 @@ void bdrv_init(void)
 {
     bdrv_register(&bdrv_raw);
     bdrv_register(&bdrv_host_device);
-#ifndef _WIN32
-    bdrv_register(&bdrv_cow);
-#endif
     bdrv_register(&bdrv_qcow);
-    bdrv_register(&bdrv_vmdk);
     bdrv_register(&bdrv_cloop);
-    bdrv_register(&bdrv_dmg);
     bdrv_register(&bdrv_bochs);
-    bdrv_register(&bdrv_vpc);
-    bdrv_register(&bdrv_vvfat);
     bdrv_register(&bdrv_qcow2);
     bdrv_register(&bdrv_parallels);
     bdrv_register(&bdrv_nbd);

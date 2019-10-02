@@ -346,7 +346,10 @@ int main(int argc, char **argv)
         int sock;
 
         if (!verbose)
-            daemon(0, 0);	/* detach client and server */
+	{
+            int unused=daemon(0, 0);	/* detach client and server */
+	    unused=unused;
+	}
 
         if (socket == NULL) {
             sprintf(sockpath, SOCKET_PATH, basename(device));

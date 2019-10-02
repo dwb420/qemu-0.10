@@ -31,7 +31,6 @@
 #include "block_int.h"
 #include "qemu-timer.h"
 #include "sysemu.h"
-#include "ppc_mac.h"
 #include "mac_dbdma.h"
 #include "sh.h"
 #include "dma.h"
