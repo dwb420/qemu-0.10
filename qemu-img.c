@@ -465,9 +465,9 @@ static int img_convert(int argc, char **argv)
     drv = bdrv_find_format(out_fmt);
     if (!drv)
         error("Unknown file format '%s'", out_fmt);
-    if (flags & BLOCK_FLAG_COMPRESS && drv != &bdrv_qcow && drv != &bdrv_qcow2)
+    if (flags & BLOCK_FLAG_COMPRESS && drv != &bdrv_qcow2)
         error("Compression not supported for this file format");
-    if (flags & BLOCK_FLAG_ENCRYPT && drv != &bdrv_qcow && drv != &bdrv_qcow2)
+    if (flags & BLOCK_FLAG_ENCRYPT && drv != &bdrv_qcow2)
         error("Encryption not supported for this file format");
     if (flags & BLOCK_FLAG_ENCRYPT && flags & BLOCK_FLAG_COMPRESS)
         error("Compression and encryption not supported at the same time");
