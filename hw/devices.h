@@ -10,12 +10,6 @@ void smc91c111_init(NICInfo *, uint32_t, qemu_irq);
 int ssd0323_xfer_ssi(void *opaque, int data);
 void *ssd0323_init(qemu_irq *cmd_p);
 
-/* ads7846.c */
-struct ads7846_state_s;
-uint32_t ads7846_read(void *opaque);
-void ads7846_write(void *opaque, uint32_t value);
-struct ads7846_state_s *ads7846_init(qemu_irq penirq);
-
 /* tsc210x.c */
 struct uwire_slave_s;
 struct mouse_transform_info_s;
@@ -63,15 +57,6 @@ struct tusb_s *tusb6010_init(qemu_irq intr);
 int tusb6010_sync_io(struct tusb_s *s);
 int tusb6010_async_io(struct tusb_s *s);
 void tusb6010_power(struct tusb_s *s, int on);
-
-/* tc6393xb.c */
-struct tc6393xb_s;
-#define TC6393XB_RAM	0x110000 /* amount of ram for Video and USB */
-struct tc6393xb_s *tc6393xb_init(uint32_t base, qemu_irq irq);
-void tc6393xb_gpio_out_set(struct tc6393xb_s *s, int line,
-                    qemu_irq handler);
-qemu_irq *tc6393xb_gpio_in_get(struct tc6393xb_s *s);
-qemu_irq tc6393xb_l3v_get(struct tc6393xb_s *s);
 
 /* sm501.c */
 void sm501_init(uint32_t base, unsigned long local_mem_base,

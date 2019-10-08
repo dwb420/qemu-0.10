@@ -27,7 +27,6 @@
 #include "sysemu.h"
 #include "qemu-timer.h"
 #include "qemu-char.h"
-#include "audio/audio.h"
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -37,7 +36,6 @@
 #include <sys/time.h>
 #include <zlib.h>
 
-#ifndef _WIN32
 #include <sys/times.h>
 #include <sys/wait.h>
 #include <termios.h>
@@ -47,27 +45,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <net/if.h>
-#ifdef __NetBSD__
-#include <net/if_tap.h>
-#endif
-#ifdef __linux__
 #include <linux/if_tun.h>
-#endif
 #include <arpa/inet.h>
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/select.h>
-#ifdef _BSD
-#include <sys/stat.h>
-#ifdef __FreeBSD__
-#include <libutil.h>
-#else
-#include <util.h>
-#endif
-#elif defined (__GLIBC__) && defined (__FreeBSD_kernel__)
-#include <freebsd/stdlib.h>
-#else
-#ifdef __linux__
 #include <pty.h>
 #include <malloc.h>
 #include <linux/rtc.h>
@@ -79,24 +61,6 @@
 
 #include <linux/ppdev.h>
 #include <linux/parport.h>
-#endif
-#ifdef __sun__
-#include <sys/stat.h>
-#include <sys/ethernet.h>
-#include <sys/sockio.h>
-#include <netinet/arp.h>
-#include <netinet/in.h>
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h> // must come after ip.h
-#include <netinet/udp.h>
-#include <netinet/tcp.h>
-#include <net/if.h>
-#include <syslog.h>
-#include <stropts.h>
-#endif
-#endif
-#endif
 
 #include "qemu_socket.h"
 
@@ -104,20 +68,8 @@
 #include "libslirp.h"
 #endif
 
-#if defined(__OpenBSD__)
-#include <util.h>
-#endif
-
 #if defined(CONFIG_VDE)
 #include <libvdeplug.h>
-#endif
-
-#ifdef _WIN32
-#include <malloc.h>
-#include <sys/timeb.h>
-#include <mmsystem.h>
-#define getopt_long_only getopt_long
-#define memalign(align, size) malloc(size)
 #endif
 
 static VLANState *first_vlan;
@@ -275,26 +227,6 @@ int parse_host_port(struct sockaddr_in *saddr, const char *str)
     saddr->sin_port = htons(port);
     return 0;
 }
-
-#if !defined(_WIN32) && 0
-static int parse_unix_path(struct sockaddr_un *uaddr, const char *str)
-{
-    const char *p;
-    int len;
-
-    len = MIN(108, strlen(str));
-    p = strchr(str, ',');
-    if (p)
-	len = MIN(len, p - str);
-
-    memset(uaddr, 0, sizeof(*uaddr));
-
-    uaddr->sun_family = AF_UNIX;
-    memcpy(uaddr->sun_path, str, len);
-
-    return 0;
-}
-#endif
 
 void qemu_format_nic_info_str(VLANClientState *vc, uint8_t macaddr[6])
 {
@@ -574,8 +506,6 @@ void net_slirp_redir(const char *redir_str)
     exit(1);
 }
 
-#ifndef _WIN32
-
 static char smb_dir[1024];
 
 static void erase_dir(char *dir_name)
@@ -664,7 +594,6 @@ void net_slirp_smb(const char *exported_dir)
     slirp_add_exec(0, smb_cmdline, 4, 139);
 }
 
-#endif /* !defined(_WIN32) */
 void do_info_slirp(void)
 {
     slirp_stats();
@@ -688,8 +617,6 @@ static void vmchannel_read(void *opaque, const uint8_t *buf, int size)
 }
 
 #endif /* CONFIG_SLIRP */
-
-#if !defined(_WIN32)
 
 typedef struct TAPState {
     VLANClientState *vc;
@@ -1026,8 +953,6 @@ static int net_tap_init(VLANState *vlan, const char *model,
     }
     return 0;
 }
-
-#endif /* !_WIN32 */
 
 #if defined(CONFIG_VDE)
 typedef struct VDEState {
@@ -1906,7 +1831,6 @@ void net_cleanup(void)
 {
     VLANState *vlan;
 
-#if !defined(_WIN32)
     /* close network clients */
     for(vlan = first_vlan; vlan != NULL; vlan = vlan->next) {
         VLANClientState *vc;
@@ -1926,7 +1850,6 @@ void net_cleanup(void)
 #endif
         }
     }
-#endif
 }
 
 void net_client_check(void)

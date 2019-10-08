@@ -3,7 +3,7 @@
 include config-host.mak
 include $(SRC_PATH)/rules.mak
 
-.PHONY: all clean distclean recurse-all 
+.PHONY: all clean distclean recurse-all
 
 VPATH=$(SRC_PATH):$(SRC_PATH)/hw
 
@@ -53,55 +53,15 @@ OBJS=$(BLOCK_OBJS)
 OBJS+=readline.o console.o
 
 OBJS+=irq.o
-OBJS+=i2c.o smbus.o smbus_eeprom.o max7310.o max111x.o wm8750.o
-OBJS+=ssd0303.o ssd0323.o ads7846.o stellaris_input.o twl92230.o
-OBJS+=tmp105.o lm832x.o
+OBJS+=i2c.o smbus.o smbus_eeprom.o
+OBJS+=ssd0323.o
 OBJS+=scsi-disk.o cdrom.o
 OBJS+=scsi-generic.o
-OBJS+=usb.o usb-hub.o usb-$(HOST_USB).o usb-hid.o usb-msd.o usb-wacom.o
-OBJS+=usb-serial.o usb-net.o
-OBJS+=sd.o ssi-sd.o
+OBJS+=usb.o usb-hub.o usb-hid.o usb-$(HOST_USB).o
 OBJS+=buffered_file.o migration.o migration-tcp.o net.o qemu-sockets.o
 OBJS+=qemu-char.o aio.o net-checksum.o savevm.o cache-utils.o
 
 OBJS+=migration-exec.o
-
-AUDIO_OBJS = audio.o noaudio.o wavaudio.o mixeng.o
-ifdef CONFIG_OSS
-AUDIO_OBJS += ossaudio.o
-endif
-ifdef CONFIG_COREAUDIO
-AUDIO_OBJS += coreaudio.o
-AUDIO_PT = yes
-endif
-ifdef CONFIG_ALSA
-AUDIO_OBJS += alsaaudio.o
-endif
-ifdef CONFIG_DSOUND
-AUDIO_OBJS += dsoundaudio.o
-endif
-ifdef CONFIG_FMOD
-AUDIO_OBJS += fmodaudio.o
-audio/audio.o audio/fmodaudio.o: CPPFLAGS := -I$(CONFIG_FMOD_INC) $(CPPFLAGS)
-endif
-ifdef CONFIG_ESD
-AUDIO_PT = yes
-AUDIO_PT_INT = yes
-AUDIO_OBJS += esdaudio.o
-endif
-ifdef CONFIG_PA
-AUDIO_PT = yes
-AUDIO_PT_INT = yes
-AUDIO_OBJS += paaudio.o
-endif
-ifdef AUDIO_PT
-LDFLAGS += -pthread
-endif
-ifdef AUDIO_PT_INT
-AUDIO_OBJS += audio_pt_int.o
-endif
-AUDIO_OBJS+= wavcapture.o
-OBJS+=$(addprefix audio/, $(AUDIO_OBJS))
 
 ifdef CONFIG_CURSES
 OBJS+=curses.o
@@ -147,16 +107,16 @@ clean:
 	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d
 	for d in $(TARGET_DIRS); do \
 	make -C $$d clean || exit 1 ; \
-        done
+	done
 
 distclean: clean
 	rm -f config-host.mak config-host.h $(DOCS)
 	rm -f qemu-{doc,tech}.{info,aux,cp,dvi,fn,info,ky,log,pg,toc,tp,vr}
 	for d in $(TARGET_DIRS); do \
 	rm -rf $$d || exit 1 ; \
-        done
+	done
 
-KEYMAPS=modifiers en-us mk common 
+KEYMAPS=modifiers en-us mk common
 
 VERSION ?= $(shell cat VERSION)
 FILE = qemu-$(VERSION)

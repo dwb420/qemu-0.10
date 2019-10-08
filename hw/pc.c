@@ -27,7 +27,6 @@
 #include "pci.h"
 #include "block.h"
 #include "sysemu.h"
-#include "audio/audio.h"
 #include "net.h"
 #include "smbus.h"
 #include "boards.h"
@@ -713,38 +712,6 @@ static int serial_irq[MAX_SERIAL_PORTS] = { 4, 3, 4, 3 };
 static int parallel_io[MAX_PARALLEL_PORTS] = { 0x378, 0x278, 0x3bc };
 static int parallel_irq[MAX_PARALLEL_PORTS] = { 7, 7, 7 };
 
-#ifdef HAS_AUDIO
-static void audio_init (PCIBus *pci_bus, qemu_irq *pic)
-{
-    struct soundhw *c;
-    int audio_enabled = 0;
-
-    for (c = soundhw; !audio_enabled && c->name; ++c) {
-        audio_enabled = c->enabled;
-    }
-
-    if (audio_enabled) {
-        AudioState *s;
-
-        s = AUD_init ();
-        if (s) {
-            for (c = soundhw; c->name; ++c) {
-                if (c->enabled) {
-                    if (c->isa) {
-                        c->init.init_isa (s, pic);
-                    }
-                    else {
-                        if (pci_bus) {
-                            c->init.init_pci (pci_bus, s);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-#endif
-
 static void pc_init_ne2k_isa(NICInfo *nd, qemu_irq *pic)
 {
     static int nb_ne2k = 0;
@@ -857,13 +824,9 @@ static void pc_init1(ram_addr_t ram_size, int vga_ram_size,
         exit(1);
     }
 
-    if (cirrus_vga_enabled || std_vga_enabled || vmsvga_enabled) {
+    if (std_vga_enabled) {
         /* VGA BIOS load */
-        if (cirrus_vga_enabled) {
-            snprintf(buf, sizeof(buf), "%s/%s", bios_dir, VGABIOS_CIRRUS_FILENAME);
-        } else {
-            snprintf(buf, sizeof(buf), "%s/%s", bios_dir, VGABIOS_FILENAME);
-        }
+        snprintf(buf, sizeof(buf), "%s/%s", bios_dir, VGABIOS_FILENAME);
         vga_bios_size = get_image_size(buf);
         if (vga_bios_size <= 0 || vga_bios_size > 65536)
             goto vga_bios_error;
@@ -948,29 +911,12 @@ vga_bios_error:
 
     register_ioport_write(0xf0, 1, 1, ioportF0_write, NULL);
 
-    if (cirrus_vga_enabled) {
-        if (pci_enabled) {
-            pci_cirrus_vga_init(pci_bus,
-                                phys_ram_base + vga_ram_addr,
-                                vga_ram_addr, vga_ram_size);
-        } else {
-            isa_cirrus_vga_init(phys_ram_base + vga_ram_addr,
-                                vga_ram_addr, vga_ram_size);
-        }
-    } else if (vmsvga_enabled) {
-        if (pci_enabled)
-            pci_vmsvga_init(pci_bus, phys_ram_base + vga_ram_addr,
-                            vga_ram_addr, vga_ram_size);
-        else
-            fprintf(stderr, "%s: vmware_vga: no PCI bus\n", __FUNCTION__);
-    } else if (std_vga_enabled) {
-        if (pci_enabled) {
-            pci_vga_init(pci_bus, phys_ram_base + vga_ram_addr,
+    if (pci_enabled) {
+        pci_vga_init(pci_bus, phys_ram_base + vga_ram_addr,
                          vga_ram_addr, vga_ram_size, 0, 0);
-        } else {
-            isa_vga_init(phys_ram_base + vga_ram_addr,
+    } else {
+        isa_vga_init(phys_ram_base + vga_ram_addr,
                          vga_ram_addr, vga_ram_size);
-        }
     }
 
     rtc_state = rtc_init(0x70, i8259[8], 2000);
@@ -984,7 +930,6 @@ vga_bios_error:
         ioapic = ioapic_init();
     }
     pit = pit_init(0x40, i8259[0]);
-    pcspk_init(pit);
     if (!no_hpet) {
         hpet_init(i8259);
     }
@@ -996,13 +941,6 @@ vga_bios_error:
         if (serial_hds[i]) {
             serial_init(serial_io[i], i8259[serial_irq[i]], 115200,
                         serial_hds[i]);
-        }
-    }
-
-    for(i = 0; i < MAX_PARALLEL_PORTS; i++) {
-        if (parallel_hds[i]) {
-            parallel_init(parallel_io[i], i8259[parallel_irq[i]],
-                          parallel_hds[i]);
         }
     }
 
@@ -1041,9 +979,6 @@ vga_bios_error:
 
     i8042_init(i8259[1], i8259[12], 0x60);
     DMA_init(0);
-#ifdef HAS_AUDIO
-    audio_init(pci_enabled ? pci_bus : NULL, i8259);
-#endif
 
     for(i = 0; i < MAX_FD; i++) {
         index = drive_get_index(IF_FLOPPY, 0, i);

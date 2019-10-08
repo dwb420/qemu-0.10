@@ -25,9 +25,6 @@ interp_prefix="/usr/gnemul/qemu-%M"
 static="no"
 cross_prefix=""
 cc="gcc"
-audio_drv_list=""
-audio_card_list="ac97 es1370 sb16"
-audio_possible_cards="ac97 es1370 sb16 cs4231a adlib gus"
 host_cc="gcc"
 ar="ar"
 make="make"
@@ -122,18 +119,9 @@ if check_define __linux__ ; then
 else
   targetos=`uname -s`
 fi
-case $targetos in
-*)
-audio_drv_list="oss"
-audio_possible_drivers="oss alsa esd pa"
 linux="yes"
 linux_user="no"
 usb="linux"
-if [ "$cpu" = "i386" -o "$cpu" = "x86_64" ] ; then
-    audio_possible_drivers="$audio_possible_drivers fmod"
-fi
-;;
-esac
 
 # find source path
 source_path=`dirname "$0"`
@@ -185,21 +173,9 @@ for opt do
   ;;
   --static) static="yes"
   ;;
-  --fmod-lib=*) fmod_lib="$optarg"
-  ;;
-  --fmod-inc=*) fmod_inc="$optarg"
-  ;;
-  --oss-lib=*) oss_lib="$optarg"
-  ;;
-  --audio-card-list=*) audio_card_list=`echo "$optarg" | sed -e 's/,/ /g'`
-  ;;
-  --audio-drv-list=*) audio_drv_list="$optarg"
-  ;;
   --enable-sparse) sparse="yes"
   ;;
   --disable-sparse) sparse="no"
-  ;;
-  --disable-vnc-tls) vnc_tls="no"
   ;;
   --disable-slirp) slirp="no"
   ;;
@@ -209,13 +185,7 @@ for opt do
   ;;
   --enable-profiler) profiler="yes"
   ;;
-  --disable-system) softmmu="no"
-  ;;
   --enable-system) softmmu="yes"
-  ;;
-  --disable-linux-user) linux_user="no"
-  ;;
-  --enable-linux-user) linux_user="yes"
   ;;
   --enable-uname-release=*) uname_release="$optarg"
   ;;
@@ -223,11 +193,7 @@ for opt do
   ;;
   --disable-nptl) nptl="no"
   ;;
-  --enable-mixemu) mixemu="yes"
-  ;;
   --disable-aio) aio="no"
-  ;;
-  --disable-blobs) blobs="no"
   ;;
   --kerneldir=*) kerneldir="$optarg"
   ;;
@@ -279,27 +245,15 @@ echo "  --install=INSTALL        use specified install [$install]"
 echo "  --static                 enable static build [$static]"
 echo "  --enable-sparse          enable sparse checker"
 echo "  --disable-sparse         disable sparse checker (default)"
-echo "  --audio-drv-list=LIST    set audio drivers list:"
-echo "                           Available drivers: $audio_possible_drivers"
-echo "  --audio-card-list=LIST   set list of emulated audio cards [$audio_card_list]"
-echo "                           Available cards: $audio_possible_cards"
-echo "  --enable-mixemu          enable mixer emulation"
-echo "  --disable-vnc-tls        disable TLS encryption for VNC server"
 echo "  --disable-curses         disable curses output"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --disable-nptl           disable usermode NPTL support"
 echo "  --enable-system          enable all system emulation targets"
 echo "  --disable-system         disable all system emulation targets"
-echo "  --enable-linux-user      enable all linux usermode emulation targets"
-echo "  --disable-linux-user     disable all linux usermode emulation targets"
-echo "  --fmod-lib               path to FMOD library"
-echo "  --fmod-inc               path to FMOD includes"
-echo "  --oss-lib                path to OSS library"
 echo "  --enable-uname-release=R Return R for uname -r in usermode emulation"
 echo "  --sparc_cpu=V            Build qemu for Sparc architecture v7, v8, v8plus, v8plusa, v9"
 echo "  --disable-vde            disable support for vde network"
 echo "  --disable-aio            disable AIO support"
-echo "  --disable-blobs          disable installing provided firmware blobs"
 echo "  --kerneldir=PATH         look for kernel includes in PATH"
 echo ""
 echo "NOTE: The object files are built at the place where configure is launched"
@@ -382,23 +336,6 @@ else
 fi
 
 ##########################################
-# VNC TLS detection
-if test "$vnc_tls" = "yes" ; then
-cat > $TMPC <<EOF
-#include <gnutls/gnutls.h>
-int main(void) { gnutls_session_t s; gnutls_init(&s, GNUTLS_SERVER); return 0; }
-EOF
-    vnc_tls_cflags=`pkg-config --cflags gnutls 2> /dev/null`
-    vnc_tls_libs=`pkg-config --libs gnutls 2> /dev/null`
-    if $cc $ARCH_CFLAGS -o $TMPE ${OS_CFLAGS} $vnc_tls_cflags $TMPC \
-           $vnc_tls_libs > /dev/null 2> /dev/null ; then
-	:
-    else
-	vnc_tls="no"
-    fi
-fi
-
-##########################################
 # vde libraries probe
 if test "$vde" = "yes" ; then
   cat > $TMPC << EOF
@@ -416,74 +353,6 @@ EOF
         vde="no"
     fi
 fi
-
-##########################################
-# Sound support libraries probe
-
-audio_drv_probe()
-{
-    drv=$1
-    hdr=$2
-    lib=$3
-    exp=$4
-    cfl=$5
-        cat > $TMPC << EOF
-#include <$hdr>
-int main(void) { $exp }
-EOF
-    if $cc $ARCH_CFLAGS $cfl -o $TMPE $TMPC $lib > /dev/null 2> /dev/null ; then
-        :
-    else
-        echo
-        echo "Error: $drv check failed"
-        echo "Make sure to have the $drv libs and headers installed."
-        echo
-        exit 1
-    fi
-}
-
-audio_drv_list=`echo "$audio_drv_list" | sed -e 's/,/ /g'`
-for drv in $audio_drv_list; do
-    case $drv in
-    alsa)
-    audio_drv_probe $drv alsa/asoundlib.h -lasound \
-        "snd_pcm_t **handle; return snd_pcm_close(*handle);"
-    ;;
-
-    fmod)
-    if test -z $fmod_lib || test -z $fmod_inc; then
-        echo
-        echo "Error: You must specify path to FMOD library and headers"
-        echo "Example: --fmod-inc=/path/include/fmod --fmod-lib=/path/lib/libfmod-3.74.so"
-        echo
-        exit 1
-    fi
-    audio_drv_probe $drv fmod.h $fmod_lib "return FSOUND_GetVersion();" "-I $fmod_inc"
-    ;;
-
-    esd)
-    audio_drv_probe $drv esd.h -lesd 'return esd_play_stream(0, 0, "", 0);'
-    ;;
-
-    pa)
-    audio_drv_probe $drv pulse/simple.h -lpulse-simple \
-        "pa_simple *s = NULL; pa_simple_free(s); return 0;"
-    ;;
-
-    oss|core|wav|dsound)
-    ;;
-
-    *)
-    echo "$audio_possible_drivers" | grep -q "\<$drv\>" || {
-        echo
-        echo "Error: Unknown driver '$drv' selected"
-        echo "Possible drivers are: $audio_possible_drivers"
-        echo
-        exit 1
-    }
-    ;;
-    esac
-done
 
 ##########################################
 # curses probe
@@ -614,7 +483,6 @@ fi
 if test -z "$prefix" ; then
   prefix="/usr/local"
 fi
-mansuffix="/share/man"
 datasuffix="/share/qemu"
 docsuffix="/share/doc/qemu"
 binsuffix="/bin"
@@ -622,7 +490,6 @@ binsuffix="/bin"
 echo "Install prefix    $prefix"
 echo "BIOS directory    $prefix$datasuffix"
 echo "binary directory  $prefix$binsuffix"
-echo "Manual directory  $prefix$mansuffix"
 echo "ELF interp prefix $interp_prefix"
 echo "Source path       $source_path"
 echo "C compiler        $cc"
@@ -638,23 +505,11 @@ echo "sparse enabled    $sparse"
 echo "profiler          $profiler"
 echo "static build      $static"
 echo "curses support    $curses"
-echo "Audio drivers     $audio_drv_list"
-echo "Extra audio cards $audio_card_list"
-echo "Mixer emulation   $mixemu"
-echo "VNC TLS support   $vnc_tls"
-if test "$vnc_tls" = "yes" ; then
-    echo "    TLS CFLAGS    $vnc_tls_cflags"
-    echo "    TLS LIBS      $vnc_tls_libs"
-fi
-if test -n "$sparc_cpu"; then
-    echo "Target Sparc Arch $sparc_cpu"
-fi
 [ ! -z "$uname_release" ] && \
 echo "uname -r          $uname_release"
 echo "NPTL support      $nptl"
 echo "vde support       $vde"
 echo "AIO support       $aio"
-echo "Install blobs     $blobs"
 echo "KVM support       $kvm"
 echo "fdt support       $fdt"
 
@@ -673,8 +528,6 @@ echo "/* Automatically generated by configure - do not modify */" > $config_h
 
 echo "prefix=$prefix" >> $config_mak
 echo "bindir=\${prefix}$binsuffix" >> $config_mak
-echo "mandir=\${prefix}$mansuffix" >> $config_mak
-echo "datadir=\${prefix}$datasuffix" >> $config_mak
 echo "docdir=\${prefix}$docsuffix" >> $config_mak
 echo "#define CONFIG_QEMU_SHAREDIR \"$prefix$datasuffix\"" >> $config_h
 echo "MAKE=$make" >> $config_mak
@@ -760,35 +613,8 @@ if test "$vde" = "yes" ; then
   echo "#define CONFIG_VDE 1" >> $config_h
   echo "VDE_LIBS=-lvdeplug" >> $config_mak
 fi
-for card in $audio_card_list; do
-    def=CONFIG_`echo $card | tr '[:lower:]' '[:upper:]'`
-    echo "$def=yes" >> $config_mak
-    echo "#define $def 1" >> $config_h
-done
-echo "#define AUDIO_DRIVERS \\" >> $config_h
-for drv in $audio_drv_list; do
-    echo "    &${drv}_audio_driver, \\" >>$config_h
-    def=CONFIG_`echo $drv | tr '[:lower:]' '[:upper:]'`
-    echo "$def=yes" >> $config_mak
-    if test "$drv" = "fmod"; then
-        echo "CONFIG_FMOD_LIB=$fmod_lib" >> $config_mak
-        echo "CONFIG_FMOD_INC=$fmod_inc" >> $config_mak
-    elif test "$drv" = "oss"; then
-        echo "CONFIG_OSS_LIB=$oss_lib" >> $config_mak
-    fi
-done
+qemu_version="0.10.0"
 echo "" >>$config_h
-if test "$mixemu" = "yes" ; then
-  echo "CONFIG_MIXEMU=yes" >> $config_mak
-  echo "#define CONFIG_MIXEMU 1" >> $config_h
-fi
-if test "$vnc_tls" = "yes" ; then
-  echo "CONFIG_VNC_TLS=yes" >> $config_mak
-  echo "CONFIG_VNC_TLS_CFLAGS=$vnc_tls_cflags" >> $config_mak
-  echo "CONFIG_VNC_TLS_LIBS=$vnc_tls_libs" >> $config_mak
-  echo "#define CONFIG_VNC_TLS 1" >> $config_h
-fi
-qemu_version=`head $source_path/VERSION`
 echo "VERSION=$qemu_version" >>$config_mak
 echo "#define QEMU_VERSION \"$qemu_version\"" >> $config_h
 
@@ -972,7 +798,7 @@ done # for target in $targets
 
 # build tree in object directory if source path is different from current one
 if test "$source_path_used" = "yes" ; then
-    DIRS="slirp audio"
+    DIRS="slirp "
     FILES="Makefile "
     for dir in $DIRS ; do
             mkdir -p $dir

@@ -787,12 +787,6 @@ typedef PCIDevice *(*PCINICInitFn)(PCIBus *, NICInfo *, int);
 
 static PCINICInitFn pci_nic_init_fns[] = {
     pci_ne2000_init,
-    pci_i82551_init,
-    pci_i82557b_init,
-    pci_i82559er_init,
-    pci_rtl8139_init,
-    pci_e1000_init,
-    pci_pcnet_init,
     virtio_net_init,
     NULL
 };

@@ -26,9 +26,8 @@
 #include "hw/usb.h"
 #include "hw/pcmcia.h"
 #include "hw/pc.h"
-#include "hw/audiodev.h"
 #include "hw/isa.h"
-#include "hw/baum.h"
+//#include "hw/baum.h"
 #include "net.h"
 #include "console.h"
 #include "sysemu.h"
@@ -37,7 +36,6 @@
 #include "qemu-char.h"
 #include "cache-utils.h"
 #include "block.h"
-#include "audio/audio.h"
 #include "migration.h"
 #include "kvm.h"
 #include "balloon.h"
@@ -140,9 +138,7 @@ NICInfo nd_table[MAX_NICS];
 int vm_running;
 static int rtc_utc = 1;
 static int rtc_date_offset = -1; /* -1 means no change */
-int cirrus_vga_enabled = 1;
-int std_vga_enabled = 0;
-int vmsvga_enabled = 0;
+int std_vga_enabled = 1;
 int graphic_width = 800;
 int graphic_height = 600;
 int graphic_depth = 15;
@@ -2193,25 +2189,8 @@ static int usb_device_add(const char *devname)
 
     if (strstart(devname, "host:", &p)) {
         dev = usb_host_device_open(p);
-    } else if (!strcmp(devname, "mouse")) {
-        dev = usb_mouse_init();
     } else if (!strcmp(devname, "tablet")) {
         dev = usb_tablet_init();
-    } else if (!strcmp(devname, "keyboard")) {
-        dev = usb_keyboard_init();
-    } else if (strstart(devname, "disk:", &p)) {
-        dev = usb_msd_init(p);
-    } else if (!strcmp(devname, "wacom-tablet")) {
-        dev = usb_wacom_init();
-    } else if (strstart(devname, "serial:", &p)) {
-        dev = usb_serial_init(p);
-    } else if (strstart(devname, "net:", &p)) {
-        int nic = nb_nics;
-
-        if (net_client_init("nic", p) < 0)
-            return -1;
-        nd_table[nic].model = "usb";
-        dev = usb_net_init(&nd_table[nic]);
     } else {
         return -1;
     }
@@ -3408,7 +3387,7 @@ static void help(int exitcode)
            "-curses         use a curses/ncurses interface\n"
 #endif
            "-portrait       rotate graphical output 90 deg left (only PXA LCD)\n"
-           "-vga [std|cirrus|vmware|none]\n"
+           "-vga [std|none]\n"
            "                select video card type\n"
            "-full-screen    start in full screen\n"
            "-vnc display    start a VNC server on display\n"
@@ -3774,167 +3753,14 @@ static void read_passwords(void)
     }
 }
 
-#ifdef HAS_AUDIO
-struct soundhw soundhw[] = {
-#ifdef HAS_AUDIO_CHOICE
-#if defined(TARGET_I386)
-    {
-        "pcspk",
-        "PC speaker",
-        0,
-        1,
-        { .init_isa = pcspk_audio_init }
-    },
-#endif
-
-#ifdef CONFIG_SB16
-    {
-        "sb16",
-        "Creative Sound Blaster 16",
-        0,
-        1,
-        { .init_isa = SB16_init }
-    },
-#endif
-
-#ifdef CONFIG_CS4231A
-    {
-        "cs4231a",
-        "CS4231A",
-        0,
-        1,
-        { .init_isa = cs4231a_init }
-    },
-#endif
-
-#ifdef CONFIG_ADLIB
-    {
-        "adlib",
-#ifdef HAS_YMF262
-        "Yamaha YMF262 (OPL3)",
-#else
-        "Yamaha YM3812 (OPL2)",
-#endif
-        0,
-        1,
-        { .init_isa = Adlib_init }
-    },
-#endif
-
-#ifdef CONFIG_GUS
-    {
-        "gus",
-        "Gravis Ultrasound GF1",
-        0,
-        1,
-        { .init_isa = GUS_init }
-    },
-#endif
-
-#ifdef CONFIG_AC97
-    {
-        "ac97",
-        "Intel 82801AA AC97 Audio",
-        0,
-        0,
-        { .init_pci = ac97_init }
-    },
-#endif
-
-#ifdef CONFIG_ES1370
-    {
-        "es1370",
-        "ENSONIQ AudioPCI ES1370",
-        0,
-        0,
-        { .init_pci = es1370_init }
-    },
-#endif
-
-#endif /* HAS_AUDIO_CHOICE */
-
-    { NULL, NULL, 0, 0, { NULL } }
-};
-
-static void select_soundhw (const char *optarg)
-{
-    struct soundhw *c;
-
-    if (*optarg == '?') {
-    show_valid_cards:
-
-        printf ("Valid sound card names (comma separated):\n");
-        for (c = soundhw; c->name; ++c) {
-            printf ("%-11s %s\n", c->name, c->descr);
-        }
-        printf ("\n-soundhw all will enable all of the above\n");
-        exit (*optarg != '?');
-    }
-    else {
-        size_t l;
-        const char *p;
-        char *e;
-        int bad_card = 0;
-
-        if (!strcmp (optarg, "all")) {
-            for (c = soundhw; c->name; ++c) {
-                c->enabled = 1;
-            }
-            return;
-        }
-
-        p = optarg;
-        while (*p) {
-            e = strchr (p, ',');
-            l = !e ? strlen (p) : (size_t) (e - p);
-
-            for (c = soundhw; c->name; ++c) {
-                if (!strncmp (c->name, p, l)) {
-                    c->enabled = 1;
-                    break;
-                }
-            }
-
-            if (!c->name) {
-                if (l > 80) {
-                    fprintf (stderr,
-                             "Unknown sound card name (too big to show)\n");
-                }
-                else {
-                    fprintf (stderr, "Unknown sound card name `%.*s'\n",
-                             (int) l, p);
-                }
-                bad_card = 1;
-            }
-            p += l + (e != NULL);
-        }
-
-        if (bad_card)
-            goto show_valid_cards;
-    }
-}
-#endif
-
 static void select_vgahw (const char *p)
 {
     const char *opts;
 
     if (strstart(p, "std", &opts)) {
         std_vga_enabled = 1;
-        cirrus_vga_enabled = 0;
-        vmsvga_enabled = 0;
-    } else if (strstart(p, "cirrus", &opts)) {
-        cirrus_vga_enabled = 1;
-        std_vga_enabled = 0;
-        vmsvga_enabled = 0;
-    } else if (strstart(p, "vmware", &opts)) {
-        cirrus_vga_enabled = 0;
-        std_vga_enabled = 0;
-        vmsvga_enabled = 1;
     } else if (strstart(p, "none", &opts)) {
-        cirrus_vga_enabled = 0;
         std_vga_enabled = 0;
-        vmsvga_enabled = 0;
     } else {
     invalid_vga:
         fprintf(stderr, "Unknown vga type: %s\n", p);
@@ -4314,15 +4140,6 @@ int main(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_redir:
                 net_slirp_redir(optarg);
-                break;
-#endif
-#ifdef HAS_AUDIO
-            case QEMU_OPTION_audio_help:
-                AUD_help ();
-                exit (0);
-                break;
-            case QEMU_OPTION_soundhw:
-                select_soundhw (optarg);
                 break;
 #endif
             case QEMU_OPTION_h:

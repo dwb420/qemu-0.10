@@ -28,7 +28,6 @@
 #include "sysemu.h"
 #include "qemu_socket.h"
 #include "qemu-timer.h"
-#include "audio/audio.h"
 #include <zlib.h>
 
 #define VNC_REFRESH_INTERVAL (1000 / 30)
@@ -147,9 +146,6 @@ struct VncState
     VncWritePixels *write_pixels;
     VncSendHextileTile *send_hextile_tile;
     DisplaySurface clientds, serverds;
-
-    CaptureVoiceOut *audio_cap;
-    struct audsettings as;
 
     VncReadEvent *read_handler;
     size_t read_handler_expect;
@@ -719,7 +715,7 @@ static void vnc_update_client(void *opaque)
 	    old_row += ds_get_linesize(vs->ds);
 	}
 
-	if (!has_dirty && !vs->audio_cap) {
+	if (!has_dirty) {
 	    qemu_mod_timer(vs->timer, qemu_get_clock(rt_clock) + VNC_REFRESH_INTERVAL);
 	    return;
 	}
@@ -767,71 +763,6 @@ static void vnc_update_client(void *opaque)
 
 }
 
-/* audio */
-static void audio_capture_notify(void *opaque, audcnotification_e cmd)
-{
-    VncState *vs = opaque;
-
-    switch (cmd) {
-    case AUD_CNOTIFY_DISABLE:
-        vnc_write_u8(vs, 255);
-        vnc_write_u8(vs, 1);
-        vnc_write_u16(vs, 0);
-        vnc_flush(vs);
-        break;
-
-    case AUD_CNOTIFY_ENABLE:
-        vnc_write_u8(vs, 255);
-        vnc_write_u8(vs, 1);
-        vnc_write_u16(vs, 1);
-        vnc_flush(vs);
-        break;
-    }
-}
-
-static void audio_capture_destroy(void *opaque)
-{
-}
-
-static void audio_capture(void *opaque, void *buf, int size)
-{
-    VncState *vs = opaque;
-
-    vnc_write_u8(vs, 255);
-    vnc_write_u8(vs, 1);
-    vnc_write_u16(vs, 2);
-    vnc_write_u32(vs, size);
-    vnc_write(vs, buf, size);
-    vnc_flush(vs);
-}
-
-static void audio_add(VncState *vs)
-{
-    struct audio_capture_ops ops;
-
-    if (vs->audio_cap) {
-        term_printf ("audio already running\n");
-        return;
-    }
-
-    ops.notify = audio_capture_notify;
-    ops.destroy = audio_capture_destroy;
-    ops.capture = audio_capture;
-
-    vs->audio_cap = AUD_add_capture(NULL, &vs->as, &ops, vs);
-    if (!vs->audio_cap) {
-        term_printf ("Failed to add audio capture\n");
-    }
-}
-
-static void audio_del(VncState *vs)
-{
-    if (vs->audio_cap) {
-        AUD_del_capture(vs->audio_cap, vs);
-        vs->audio_cap = NULL;
-    }
-}
-
 static int vnc_client_io_error(VncState *vs, int ret, int last_errno)
 {
     if (ret == 0 || ret == -1) {
@@ -839,9 +770,6 @@ static int vnc_client_io_error(VncState *vs, int ret, int last_errno)
             switch (last_errno) {
                 case EINTR:
                 case EAGAIN:
-#ifdef _WIN32
-                case WSAEWOULDBLOCK:
-#endif
                     return 0;
                 default:
                     break;
@@ -855,13 +783,6 @@ static int vnc_client_io_error(VncState *vs, int ret, int last_errno)
         qemu_free_timer(vs->timer);
         if (vs->input.buffer) qemu_free(vs->input.buffer);
         if (vs->output.buffer) qemu_free(vs->output.buffer);
-#ifdef CONFIG_VNC_TLS
-	if (vs->tls_session) {
-	    gnutls_deinit(vs->tls_session);
-	    vs->tls_session = NULL;
-	}
-#endif /* CONFIG_VNC_TLS */
-        audio_del(vs);
 
         VncState *p, *parent = NULL;
         for (p = vs->vd->clients; p != NULL; p = p->next) {
@@ -1308,16 +1229,6 @@ static void send_ext_key_event_ack(VncState *vs)
     vnc_flush(vs);
 }
 
-static void send_ext_audio_ack(VncState *vs)
-{
-    vnc_write_u8(vs, 0);
-    vnc_write_u8(vs, 0);
-    vnc_write_u16(vs, 1);
-    vnc_framebuffer_update(vs, 0, 0, ds_get_width(vs->ds), ds_get_height(vs->ds),
-                           VNC_ENCODING_AUDIO);
-    vnc_flush(vs);
-}
-
 static void set_encodings(VncState *vs, int32_t *encodings, size_t n_encodings)
 {
     int i;
@@ -1355,9 +1266,6 @@ static void set_encodings(VncState *vs, int32_t *encodings, size_t n_encodings)
             break;
         case VNC_ENCODING_EXT_KEY_EVENT:
             send_ext_key_event_ack(vs);
-            break;
-        case VNC_ENCODING_AUDIO:
-            send_ext_audio_ack(vs);
             break;
         case VNC_ENCODING_WMVi:
             vs->features |= VNC_FEATURE_WMVI_MASK;
@@ -1580,36 +1488,6 @@ static int protocol_client_msg(VncState *vs, uint8_t *data, size_t len)
                 return 4;
 
             switch (read_u16 (data, 2)) {
-            case 0:
-                audio_add(vs);
-                break;
-            case 1:
-                audio_del(vs);
-                break;
-            case 2:
-                if (len == 4)
-                    return 10;
-                switch (read_u8(data, 4)) {
-                case 0: vs->as.fmt = AUD_FMT_U8; break;
-                case 1: vs->as.fmt = AUD_FMT_S8; break;
-                case 2: vs->as.fmt = AUD_FMT_U16; break;
-                case 3: vs->as.fmt = AUD_FMT_S16; break;
-                case 4: vs->as.fmt = AUD_FMT_U32; break;
-                case 5: vs->as.fmt = AUD_FMT_S32; break;
-                default:
-                    printf("Invalid audio format %d\n", read_u8(data, 4));
-                    vnc_client_error(vs);
-                    break;
-                }
-                vs->as.nchannels = read_u8(data, 5);
-                if (vs->as.nchannels != 1 && vs->as.nchannels != 2) {
-                    printf("Invalid audio channel coount %d\n",
-                           read_u8(data, 5));
-                    vnc_client_error(vs);
-                    break;
-                }
-                vs->as.freq = read_u32(data, 6);
-                break;
             default:
                 printf ("Invalid audio message %d\n", read_u8(data, 4));
                 vnc_client_error(vs);
@@ -2261,11 +2139,6 @@ static void vnc_connect(VncDisplay *vd, int csock)
     vs->timer = qemu_new_timer(rt_clock, vnc_update_client, vs);
     vs->last_x = -1;
     vs->last_y = -1;
-
-    vs->as.freq = 44100;
-    vs->as.nchannels = 2;
-    vs->as.fmt = AUD_FMT_S16;
-    vs->as.endianness = 0;
 
     vnc_resize(vs);
     vnc_write(vs, "RFB 003.008\n", 12);

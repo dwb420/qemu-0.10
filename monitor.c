@@ -32,7 +32,6 @@
 #include "sysemu.h"
 #include "console.h"
 #include "block.h"
-#include "audio/audio.h"
 #include "disas.h"
 #include "balloon.h"
 #include <dirent.h>
@@ -1362,57 +1361,6 @@ static void do_info_profile(void)
 }
 #endif
 
-/* Capture support */
-static LIST_HEAD (capture_list_head, CaptureState) capture_head;
-
-static void do_info_capture (void)
-{
-    int i;
-    CaptureState *s;
-
-    for (s = capture_head.lh_first, i = 0; s; s = s->entries.le_next, ++i) {
-        term_printf ("[%d]: ", i);
-        s->ops.info (s->opaque);
-    }
-}
-
-static void do_stop_capture (int n)
-{
-    int i;
-    CaptureState *s;
-
-    for (s = capture_head.lh_first, i = 0; s; s = s->entries.le_next, ++i) {
-        if (i == n) {
-            s->ops.destroy (s->opaque);
-            LIST_REMOVE (s, entries);
-            qemu_free (s);
-            return;
-        }
-    }
-}
-
-#ifdef HAS_AUDIO
-static void do_wav_capture (const char *path,
-                            int has_freq, int freq,
-                            int has_bits, int bits,
-                            int has_channels, int nchannels)
-{
-    CaptureState *s;
-
-    s = qemu_mallocz (sizeof (*s));
-
-    freq = has_freq ? freq : 44100;
-    bits = has_bits ? bits : 16;
-    nchannels = has_channels ? nchannels : 2;
-
-    if (wav_start_capture (s, path, freq, bits, nchannels)) {
-        term_printf ("Faied to add wave capture\n");
-        qemu_free (s);
-    }
-    LIST_INSERT_HEAD (&capture_head, s, entries);
-}
-#endif
-
 #if defined(TARGET_I386)
 static void do_inject_nmi(int cpu_index)
 {
@@ -1517,13 +1465,6 @@ static const term_cmd_t term_cmds[] = {
       "state", "change mouse button state (1=L, 2=M, 4=R)" },
     { "mouse_set", "i", do_mouse_set,
       "index", "set which mouse device receives events" },
-#ifdef HAS_AUDIO
-    { "wavcapture", "si?i?i?", do_wav_capture,
-      "path [frequency bits channels]",
-      "capture audio to a wave file (default frequency=44100 bits=16 channels=2)" },
-#endif
-    { "stopcapture", "i", do_stop_capture,
-      "capture index", "stop capture" },
     { "memsave", "lis", do_memory_save,
       "addr size file", "save to disk virtual memory dump starting at 'addr' of size 'size'", },
     { "pmemsave", "lis", do_physical_memory_save,
@@ -1607,8 +1548,6 @@ static const term_cmd_t info_cmds[] = {
       "", "show host USB devices", },
     { "profile", "", do_info_profile,
       "", "show profiling information", },
-    { "capture", "", do_info_capture,
-      "", "show capture information" },
     { "snapshots", "", do_info_snapshots,
       "", "show the currently saved VM snapshots" },
     { "status", "", do_info_status,
