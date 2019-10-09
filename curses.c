@@ -28,15 +28,9 @@
 
 #include <curses.h>
 
-#ifndef _WIN32
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <termios.h>
-#endif
-
-#ifdef __OpenBSD__
-#define resize_term resizeterm
-#endif
 
 #define FONT_HEIGHT 16
 #define FONT_WIDTH 8
@@ -110,7 +104,6 @@ static void curses_resize(DisplayState *ds)
     ds->surface->height = height * FONT_HEIGHT;
 }
 
-#ifndef _WIN32
 #if defined(SIGWINCH) && defined(KEY_RESIZE)
 static void curses_winch_handler(int signum)
 {
@@ -132,7 +125,6 @@ static void curses_winch_handler(int signum)
     /* some systems require this */
     signal(SIGWINCH, curses_winch_handler);
 }
-#endif
 #endif
 
 static void curses_cursor_position(DisplayState *ds, int x, int y)
@@ -305,11 +297,6 @@ static void curses_keyboard_setup(void)
 {
     int i, keycode, keysym;
 
-#if defined(__APPLE__)
-    /* always use generic keymaps */
-    if (!keyboard_layout)
-        keyboard_layout = "en-us";
-#endif
     if(keyboard_layout) {
         kbd_layout = init_keyboard_layout(keyboard_layout);
         if (!kbd_layout)
@@ -341,23 +328,20 @@ static void curses_keyboard_setup(void)
 void curses_display_init(DisplayState *ds, int full_screen)
 {
     DisplayChangeListener *dcl;
-#ifndef _WIN32
+
     if (!isatty(1)) {
         fprintf(stderr, "We need a terminal output\n");
         exit(1);
     }
-#endif
 
     curses_setup();
     curses_keyboard_setup();
     atexit(curses_atexit);
 
-#ifndef _WIN32
 #if defined(SIGWINCH) && defined(KEY_RESIZE)
     /* some curses implementations provide a handler, but we
      * want to be sure this is handled regardless of the library */
     signal(SIGWINCH, curses_winch_handler);
-#endif
 #endif
 
     dcl = (DisplayChangeListener *) qemu_mallocz(sizeof(DisplayChangeListener));
