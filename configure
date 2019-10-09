@@ -88,7 +88,6 @@ case "$cpu" in
 esac
 gprof="no"
 sparse="no"
-bigendian="no"
 EXESUF=""
 gdbstub="yes"
 slirp="yes"
@@ -100,13 +99,11 @@ vnc_tls="yes"
 linux="no"
 profiler="no"
 softmmu="yes"
-linux_user="no"
 build_docs="no"
 uname_release=""
 curses="yes"
 aio="yes"
 nptl="yes"
-mixemu="no"
 kvm="yes"
 kerneldir=""
 aix="no"
@@ -120,7 +117,6 @@ else
   targetos=`uname -s`
 fi
 linux="yes"
-linux_user="no"
 usb="linux"
 
 # find source path
@@ -248,9 +244,6 @@ echo "  --disable-sparse         disable sparse checker (default)"
 echo "  --disable-curses         disable curses output"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --disable-nptl           disable usermode NPTL support"
-echo "  --enable-system          enable all system emulation targets"
-echo "  --disable-system         disable all system emulation targets"
-echo "  --enable-uname-release=R Return R for uname -r in usermode emulation"
 echo "  --sparc_cpu=V            Build qemu for Sparc architecture v7, v8, v8plus, v8plusa, v9"
 echo "  --disable-vde            disable support for vde network"
 echo "  --disable-aio            disable AIO support"
@@ -264,23 +257,6 @@ if test ! -x "$(which cgcc 2>/dev/null)"; then
     sparse="no"
 fi
 
-if test -z "$target_list" ; then
-    if [ "$softmmu" = "yes" ] ; then
-        target_list="\
-i386-softmmu \
-x86_64-softmmu \
-"
-    fi
-
-    if [ "$linux_user" = "yes" ] ; then
-        target_list="${target_list}\
-i386-linux-user \
-x86_64-linux-user \
-"
-    fi
-else
-    target_list=`echo "$target_list" | sed -e 's/,/ /g'`
-fi
 if test -z "$target_list" ; then
     echo "No targets enabled"
     exit 1
@@ -498,7 +474,6 @@ echo "ARCH_CFLAGS       $ARCH_CFLAGS"
 echo "make              $make"
 echo "install           $install"
 echo "host CPU          $cpu"
-echo "host big endian   $bigendian"
 echo "target list       $target_list"
 echo "gprof enabled     $gprof"
 echo "sparse enabled    $sparse"
@@ -565,10 +540,6 @@ if test "$sparse" = "yes" ; then
   echo "CC      := REAL_CC=\"\$(CC)\" cgcc"       >> $config_mak
   echo "HOST_CC := REAL_CC=\"\$(HOST_CC)\" cgcc"  >> $config_mak
   echo "CFLAGS  += -Wbitwise -Wno-transparent-union -Wno-old-initializer -Wno-non-pointer-null" >> $config_mak
-fi
-if test "$bigendian" = "yes" ; then
-  echo "WORDS_BIGENDIAN=yes" >> $config_mak
-  echo "#define WORDS_BIGENDIAN 1" >> $config_h
 fi
 echo "#define HOST_LONG_BITS $hostlongbits" >> $config_h
 
@@ -675,23 +646,7 @@ target_dir="$target"
 config_mak=$target_dir/config.mak
 config_h=$target_dir/config.h
 target_cpu=`echo $target | cut -d '-' -f 1`
-target_bigendian="no"
-target_softmmu="no"
-target_user_only="no"
-target_linux_user="no"
-case "$target" in
-  ${target_cpu}-softmmu)
-    target_softmmu="yes"
-    ;;
-  ${target_cpu}-linux-user)
-    target_user_only="yes"
-    target_linux_user="yes"
-    ;;
-  *)
-    echo "ERROR: Target '$target' not recognised"
-    exit 1
-    ;;
-esac
+target_softmmu="yes"
 
 #echo "Creating $config_mak, $config_h and $target_dir/Makefile"
 
@@ -722,11 +677,6 @@ interp_prefix1=`echo "$interp_prefix" | sed "s/%M/$target_cpu/g"`
 echo "#define CONFIG_QEMU_PREFIX \"$interp_prefix1\"" >> $config_h
 gdb_xml_files=""
 
-# Disable KVM for linux-user
-if test "$kvm" = "yes" -a "$target_softmmu" = "no" ; then
-  kvm="no"
-fi
-
 case "$target_cpu" in
   i386)
     echo "TARGET_ARCH=i386" >> $config_mak
@@ -754,21 +704,9 @@ case "$target_cpu" in
     exit 1
   ;;
 esac
-if test "$target_bigendian" = "yes" ; then
-  echo "TARGET_WORDS_BIGENDIAN=yes" >> $config_mak
-  echo "#define TARGET_WORDS_BIGENDIAN 1" >> $config_h
-fi
 if test "$target_softmmu" = "yes" ; then
   echo "CONFIG_SOFTMMU=yes" >> $config_mak
   echo "#define CONFIG_SOFTMMU 1" >> $config_h
-fi
-if test "$target_user_only" = "yes" ; then
-  echo "CONFIG_USER_ONLY=yes" >> $config_mak
-  echo "#define CONFIG_USER_ONLY 1" >> $config_h
-fi
-if test "$target_linux_user" = "yes" ; then
-  echo "CONFIG_LINUX_USER=yes" >> $config_mak
-  echo "#define CONFIG_LINUX_USER 1" >> $config_h
 fi
 list=""
 if test ! -z "$gdb_xml_files" ; then
@@ -777,20 +715,6 @@ if test ! -z "$gdb_xml_files" ; then
   done
 fi
 echo "TARGET_XML_FILES=$list" >> $config_mak
-
-if test "$target_user_only" = "yes" -a "$bflt" = "yes"; then
-  echo "TARGET_HAS_BFLT=yes" >> $config_mak
-  echo "#define TARGET_HAS_BFLT 1" >> $config_h
-fi
-if test "$target_user_only" = "yes" \
-        -a "$nptl" = "yes" -a "$target_nptl" = "yes"; then
-  echo "#define USE_NPTL 1" >> $config_h
-fi
-# 32 bit ELF loader in addition to native 64 bit loader?
-if test "$target_user_only" = "yes" -a "$elfload32" = "yes"; then
-  echo "TARGET_HAS_ELFLOAD32=yes" >> $config_mak
-  echo "#define TARGET_HAS_ELFLOAD32 1" >> $config_h
-fi
 
 test -f ${config_h}~ && cmp -s $config_h ${config_h}~ && mv ${config_h}~ $config_h
 
