@@ -18,30 +18,6 @@ enum {
     VNC_AUTH_TLS = 18,
     VNC_AUTH_VENCRYPT = 19
 };
-
-#ifdef CONFIG_VNC_TLS
-enum {
-    VNC_WIREMODE_CLEAR,
-    VNC_WIREMODE_TLS,
-};
-
-enum {
-    VNC_AUTH_VENCRYPT_PLAIN = 256,
-    VNC_AUTH_VENCRYPT_TLSNONE = 257,
-    VNC_AUTH_VENCRYPT_TLSVNC = 258,
-    VNC_AUTH_VENCRYPT_TLSPLAIN = 259,
-    VNC_AUTH_VENCRYPT_X509NONE = 260,
-    VNC_AUTH_VENCRYPT_X509VNC = 261,
-    VNC_AUTH_VENCRYPT_X509PLAIN = 262,
-};
-
-#define X509_CA_CERT_FILE "ca-cert.pem"
-#define X509_CA_CRL_FILE "ca-crl.pem"
-#define X509_SERVER_KEY_FILE "server-key.pem"
-#define X509_SERVER_CERT_FILE "server-cert.pem"
-
-#endif /* CONFIG_VNC_TLS */
-
 /*****************************************************************************
  *
  * Encoding types

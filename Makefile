@@ -80,8 +80,6 @@ LIBS+=$(VDE_LIBS)
 
 vnc.o: vnc.c keymaps.c vnchextile.h d3des.c d3des.h
 
-vnc.o: CFLAGS += $(CONFIG_VNC_TLS_CFLAGS)
-
 curses.o: curses.c keymaps.c curses_keys.h
 
 libqemu_common.a: $(OBJS)
