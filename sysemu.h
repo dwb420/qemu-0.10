@@ -54,22 +54,6 @@ int qemu_savevm_state_complete(QEMUFile *f);
 int qemu_savevm_state(QEMUFile *f);
 int qemu_loadvm_state(QEMUFile *f);
 
-#ifdef _WIN32
-/* Polling handling */
-
-/* return TRUE if no sleep should be done afterwards */
-typedef int PollingFunc(void *opaque);
-
-int qemu_add_polling_cb(PollingFunc *func, void *opaque);
-void qemu_del_polling_cb(PollingFunc *func, void *opaque);
-
-/* Wait objects handling */
-typedef void WaitObjectFunc(void *opaque);
-
-int qemu_add_wait_object(HANDLE handle, WaitObjectFunc *func, void *opaque);
-void qemu_del_wait_object(HANDLE handle, WaitObjectFunc *func, void *opaque);
-#endif
-
 /* TAP win32 */
 int tap_win32_init(VLANState *vlan, const char *model,
                    const char *name, const char *ifname);
@@ -98,27 +82,9 @@ extern int semihosting_enabled;
 extern int old_param;
 extern const char *bootp_filename;
 
-#ifdef USE_KQEMU
-extern int kqemu_allowed;
-#endif
-
 #define MAX_OPTION_ROMS 16
 extern const char *option_rom[MAX_OPTION_ROMS];
 extern int nb_option_roms;
-
-#if defined(TARGET_SPARC) || defined(TARGET_PPC)
-#define MAX_PROM_ENVS 128
-extern const char *prom_envs[MAX_PROM_ENVS];
-extern unsigned int nb_prom_envs;
-#endif
-
-#if defined (TARGET_PPC)
-#define BIOS_SIZE (1024 * 1024)
-#elif defined (TARGET_SPARC64)
-#define BIOS_SIZE ((512 + 32) * 1024)
-#elif defined(TARGET_MIPS)
-#define BIOS_SIZE (4 * 1024 * 1024)
-#endif
 
 typedef enum {
     IF_IDE, IF_SCSI, IF_FLOPPY, IF_PFLASH, IF_MTD, IF_SD, IF_VIRTIO
